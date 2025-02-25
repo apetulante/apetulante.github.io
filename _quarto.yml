@@ -3,6 +3,7 @@ project:
 
 website:
   title: "Abbie's AI Tutorials"
+  site-url: "https://apetulante.github.io"
   navbar:
     right:
       - about.qmd
