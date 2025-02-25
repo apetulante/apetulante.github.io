@@ -1,0 +1,16 @@
+---
+title: "About"
+image: profile.jpg
+about:
+  template: jolla
+  links:
+    - icon: linkedin
+      text: LinkedIn
+      href: https://www.linkedin.com/in/apetulante/
+    - icon: github
+      text: Github
+      href: https://github.com/apetulante
+
+---
+
+Hi, I'm Abbie! I'm a Postdoctoral Research Fellow at Vanderbilt's Data Science Institute. I got my Ph.D. in Astrophysics in 2022, where my dissertation work focused on predicting the growth of dark matter structures in the universe by using various machine learning techniques. Now in my postdoc role, my research has expanded across modalities and methodologies. As such, the breadth of AI techniques I've learned about has expanded. The Jupyter notebooks here include a selection of some of the concepts I've explored more deeply.

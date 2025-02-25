@@ -1,0 +1,15 @@
+---
+title: "Welcome To My Tutorials Blog!"
+author: "Abbie Petulante"
+date: "2025-02-22"
+categories:
+---
+
+During my Ph.D., I utilized a U-Net to attempt to learn the final distribution of dark matter in a computer simulation from its initial conditions. Being in an Astrophysics Ph.D. program, and the year being 2020, model architectures like the U-Net weren't well known by people in my field, including my Ph.D. advisor. He tasked me: teach him what it was, down to the details, so that he could understand the concepts at a deep enough level himself to help properly guide me on the project.
+
+![Representation of a dark matter only simulation - the subject of my Ph.D. project](simulation.png)
+
+And thus, my first Jupyter notebook tutorial was born. In the process of writing code cells, making graphics in powerpoint, and scouring through documentation, I found an even deeper understanding of the concepts I was describing. As they say, the best way to prove you really know something is to teach it. Since then, every time I *really* want to understand something, I make a Jupyter notebook tutorial about it.
+
+It occured to me (5 years later), that maybe someone else would care to read these. So here, you'll find a collection of the notebooks that I've put together. Mainly to teach myself, but hopefully, to teach you too!
+
