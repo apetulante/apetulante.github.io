@@ -3,6 +3,7 @@
     "listing": "/index.html",
     "items": [
       "/posts/RL-for-LLMs/RL_for_LLMs.html",
+      "/posts/KV-Caching/kv_caching.html",
       "/posts/welcome/index.html"
     ]
   }
