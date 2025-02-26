@@ -11,12 +11,10 @@ website:
         href: https://github.com/apetulante
       - icon: linkedin
         href: https://www.linkedin.com/in/apetulante/
+
 format:
   html:
     theme:
       - cosmo
       - brand
     css: styles.css
-
-
-

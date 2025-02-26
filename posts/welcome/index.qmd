@@ -1,8 +1,10 @@
 ---
 title: "Welcome To My Tutorials Blog!"
 author: "Abbie Petulante"
-date: "2025-02-22"
-categories:
+date: "2005-02-25" # Extremely old date ensures it's last
+date-format: ""  # This hides the date display completely
+sort-order: 999
+categories: []
 ---
 
 During my Ph.D., I utilized a U-Net to attempt to learn the final distribution of dark matter in a computer simulation from its initial conditions. Being in an Astrophysics Ph.D. program, and the year being 2020, model architectures like the U-Net weren't well known by people in my field, including my Ph.D. advisor. He tasked me: teach him what it was, down to the details, so that he could understand the concepts at a deep enough level himself to help properly guide me on the project.

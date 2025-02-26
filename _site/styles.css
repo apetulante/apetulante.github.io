@@ -1,1 +1,11 @@
 /* css styles */
+/* OR: Hide only the Welcome page date */
+div[data-listing-date-sort="-5364641364000"] .listing-date {
+  display: none !important;
+}
+/* Hide ONLY the "Published" date section on the Welcome page */
+body[data-page-file="posts/welcome/index.qmd"] .quarto-title-meta-heading:contains("Published"),
+body[data-page-file="posts/welcome/index.qmd"] .quarto-title-meta-heading:contains("Published") + .quarto-title-meta-contents {
+  display: none !important;
+}
+

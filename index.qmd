@@ -1,7 +1,10 @@
 ---
-title: "Abbie's Jupyter Tutorials"
+title: "AI Jupyter Notebook Tutorials"
 listing:
-  contents: posts
+  contents: 
+    - "posts/KV-Caching"
+    - "posts/RL-for-LLMs"
+    - "posts/welcome"
   sort: "date desc"
   type: default
   categories: true
@@ -10,5 +13,3 @@ listing:
 page-layout: full
 title-block-banner: true
 ---
-
-
