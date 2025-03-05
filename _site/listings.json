@@ -2,21 +2,10 @@
   {
     "listing": "/index.html",
     "items": [
-      "/posts/RL-for-LLMs/RL_for_LLMs.html",
       "/posts/KV-Caching/kv_caching.html",
+      "/posts/RL-for-LLMs/RL_for_LLMs.html",
+      "/posts/UNet-Tutorial/UNet_Tutorial.html",
       "/posts/welcome/index.html"
     ]
-  },
-  {
-    "listing": "/posts/KV-Caching/kv_caching.html",
-    "items": []
-  },
-  {
-    "listing": "/posts/RL-for-LLMs/RL_for_LLMs.html",
-    "items": []
-  },
-  {
-    "listing": "/posts/welcome/index.html",
-    "items": []
   }
 ]

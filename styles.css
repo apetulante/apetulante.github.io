@@ -8,4 +8,8 @@ body[data-page-file="posts/welcome/index.qmd"] .quarto-title-meta-heading:contai
 body[data-page-file="posts/welcome/index.qmd"] .quarto-title-meta-heading:contains("Published") + .quarto-title-meta-contents {
   display: none !important;
 }
+.main-container {
+    max-width: 100%;
+    width: 90%;
+}
 

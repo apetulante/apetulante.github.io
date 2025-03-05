@@ -1,8 +1,7 @@
 ---
 title: "Welcome To My Tutorials Blog!"
 author: "Abbie Petulante"
-date: "2005-02-25" # Extremely old date ensures it's last
-date-format: ""  # This hides the date display completely
+date: "2025-02-25" # Extremely old date ensures it's last
 sort-order: 999
 categories: []
 ---

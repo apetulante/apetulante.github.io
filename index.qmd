@@ -4,8 +4,8 @@ listing:
   contents: 
     - "posts/KV-Caching"
     - "posts/RL-for-LLMs"
+    - "posts/UNet-Tutorial"
     - "posts/welcome"
-  sort: "date desc"
   type: default
   categories: true
   sort-ui: false
