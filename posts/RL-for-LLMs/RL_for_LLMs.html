@@ -8,9 +8,9 @@
 
 <meta name="author" content="Abbie Petulante">
 <meta name="dcterms.date" content="2025-02-25">
-<meta name="description" content="An in-depth guide to reinforcement learning using proximal policy optimization (PPO), with a focus as it applies to modern large language models.">
+<meta name="description" content="An in-depth guide to reinforcement learning using proximal policy optimization (PPO), with a focus as it applies to modern large language models (and with human feedback!).">
 
-<title>RLHF for LLMs – Abbie’s AI Tutorials</title>
+<title>RL for LLMs – Abbie’s AI Tutorials</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -183,10 +183,10 @@ window.Quarto = {
 <header id="title-block-header" class="quarto-title-block default page-columns page-full">
   <div class="quarto-title-banner page-columns page-full">
     <div class="quarto-title column-body">
-      <h1 class="title">RLHF for LLMs</h1>
+      <h1 class="title">RL for LLMs</h1>
                   <div>
         <div class="description">
-          An in-depth guide to reinforcement learning using proximal policy optimization (PPO), with a focus as it applies to modern large language models.
+          An in-depth guide to reinforcement learning using proximal policy optimization (PPO), with a focus as it applies to modern large language models (and with human feedback!).
         </div>
       </div>
                           <div class="quarto-categories">
@@ -229,12 +229,12 @@ window.Quarto = {
 
 
 
-<p><a target="_blank" href="https://colab.research.google.com/github/apetulante/Tutorials/blob/master/Training/RL_for_LLMs.ipynb"> <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"> </a></p>
 <section id="reinforcement-learning-for-llms" class="level1">
 <h1>Reinforcement Learning for LLM’s</h1>
 <blockquote class="blockquote">
 <p>In this notebook, we’ll dive deep into how LLM’s are trained using reinforcement learning, exploring how we can implement this type of training on an existing, small model to better guide our desired responses!</p>
 </blockquote>
+<p><a target="_blank" href="https://colab.research.google.com/github/apetulante/Tutorials/blob/master/Training/RL_for_LLMs.ipynb"> <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"> </a></p>
 <section id="what-is-reinforcement-learning" class="level3">
 <h3 class="anchored" data-anchor-id="what-is-reinforcement-learning">What is reinforcement learning?</h3>
 <p>In a typical LLM training paradigm, models are first trained in an <strong>self-supervised</strong> manner to predict a masked-out word. This makes them great at understanding how language is constructed, and helps us to make giant datasets very easily.</p>
@@ -251,13 +251,13 @@ window.Quarto = {
 <p>Before we get any deeper and start writing code, let’s install our necessary packages and import dependencies:</p>
 <section id="installations-and-imports" class="level2">
 <h2 class="anchored" data-anchor-id="installations-and-imports">Installations and Imports</h2>
-<div id="cell-5" class="cell">
+<div id="cell-6" class="cell">
 <div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Install required packages</span></span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="op">!</span>pip install <span class="op">-</span>q <span class="op">--</span>upgrade transformers datasets</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="op">!</span>pip install <span class="op">-</span>q trl<span class="op">==</span><span class="fl">0.10.1</span> <span class="co">#install downgraded version because it's easier to use!</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <p>(If the below imports fail, you may need to restart the kernel for those installations to take effect).</p>
-<div id="cell-7" class="cell">
+<div id="cell-8" class="cell">
 <div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Basic imports</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> transformers <span class="im">import</span> AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig</span>
@@ -280,7 +280,7 @@ window.Quarto = {
 <p>If you have access to it, a GPU runtime will make this code run smoother (or might make it possible to run at all!)</p>
 <p>The below code will confirm if you’re on a GPU. You want to see <code>CUDA available: True</code></p>
 <p>It’s not <em>required</em>, but preferred. A stronger CPU might be required.</p>
-<div id="cell-9" class="cell" data-outputid="aa078af0-1fb1-469f-c49a-ffa74f6b3d88">
+<div id="cell-10" class="cell">
 <div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Check PyTorch version and CUDA availability</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"PyTorch version: </span><span class="sc">{</span>torch<span class="sc">.</span>__version__<span class="sc">}</span><span class="ss">"</span>)</span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"CUDA available: </span><span class="sc">{</span>torch<span class="sc">.</span>cuda<span class="sc">.</span>is_available()<span class="sc">}</span><span class="ss">"</span>)</span>
@@ -295,7 +295,7 @@ CUDA available: False</code></pre>
 <section id="optional-hugging-face-authentication" class="level3">
 <h3 class="anchored" data-anchor-id="optional-hugging-face-authentication">(OPTIONAL) Hugging Face Authentication</h3>
 <p>Later in this notebook, we’ll be grabbing a model off of huggingface. While the one we use here doesn’t require a token, you can add your token here if you want to experiment with swapping GPT-2 for a different model that needs authentication.</p>
-<div id="cell-11" class="cell" data-outputid="2022b73e-bb69-4561-cbf7-3b2294af2c89">
+<div id="cell-12" class="cell">
 <div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> huggingface_hub <span class="im">import</span> login</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> getpass</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -365,7 +365,7 @@ CUDA available: False</code></pre>
 <section id="a-very-simple-example" class="level2">
 <h2 class="anchored" data-anchor-id="a-very-simple-example">A (Very) Simple Example</h2>
 <p>Let’s just start with a very basic example to illustrate what a simple reward function <em>could</em> be. Below, we’ll write a “positive sentiment” reward function that counts how many positive and negative words were used in a response, giving positive rewards for positive words, and negative rewards for negative words.</p>
-<div id="cell-19" class="cell" data-outputid="7cd3d4c6-9e5b-46ec-f6a6-762590ab0e54">
+<div id="cell-20" class="cell">
 <div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Simple reward function</span></span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> sentiment_reward(text: <span class="bu">str</span>) <span class="op">-&gt;</span> <span class="bu">float</span>:</span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    positive_words <span class="op">=</span> [<span class="st">'good'</span>, <span class="st">'great'</span>, <span class="st">'excellent'</span>, <span class="st">'wonderful'</span>, <span class="st">'amazing'</span>]</span>
@@ -415,7 +415,7 @@ Reward: 7.00</code></pre>
 <h3 class="anchored" data-anchor-id="one-step-better-adding-context">One Step Better: Adding Context</h3>
 <p>Let’s improve our reward function by considering context. We’ll: 1. Account for negations 2. Consider word positioning 3. Add penalties for repetition</p>
 <p>(We’ll also, just for simplicity sake, move this to be positive-detecting only, no negative rewards)</p>
-<div id="cell-22" class="cell" data-outputid="a3f7fc0a-c5e0-4eed-b818-ea196aa521f7">
+<div id="cell-23" class="cell">
 <div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Improved reward function with context awareness</span></span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> positivity_reward(text: <span class="bu">str</span>) <span class="op">-&gt;</span> <span class="bu">float</span>:</span>
 <span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    <span class="co"># We'll keep the same (extremely incomplete) word list</span></span>
@@ -485,7 +485,7 @@ Reward: 0.000</code></pre>
 <section id="a-more-practical-reward-function" class="level3">
 <h3 class="anchored" data-anchor-id="a-more-practical-reward-function">A More Practical Reward Function</h3>
 <p>Let’s see how we can implement <strong>some</strong> of those metrics above and build a (still very basic, but more realistic) reward function that would be more useful in practice than our “positive words” detection.</p>
-<div id="cell-26" class="cell" data-outputid="8fdc1291-24ca-464d-f199-fbd3b1c02419">
+<div id="cell-27" class="cell">
 <div class="sourceCode cell-code" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> calculate_rewards(prompt: <span class="bu">str</span>, response: <span class="bu">str</span>) <span class="op">-&gt;</span> Dict[<span class="bu">str</span>, <span class="bu">float</span>]:</span>
 <span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""</span></span>
 <span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="co">    Calculate multiple reward components for a given response.</span></span>
@@ -730,7 +730,7 @@ And we are tasked with determining if the new word that we could generate:
 <p>is advantageous or not.</p>
 <p>The current policy (model) generates “excellent” with probability 0.3, and the new proposed policy we’re evaluating generates “excellent” with probability 0.6.</p>
 <p>Below, we’ll calculate the PPO Objective <span class="math inline">\((L^{CLIP})\)</span> that would result from the production of that token. We’ll use our super simple <code>sentiment_reward</code> function that we defined above to determine our reward.</p>
-<div id="cell-38" class="cell" data-outputid="e69fe142-fe88-4276-ce33-46802eed1ab7">
+<div id="cell-39" class="cell">
 <div class="sourceCode cell-code" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> ppo_update(old_prob, new_prob, advantage, epsilon<span class="op">=</span><span class="fl">0.1</span>):</span>
 <span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Calculate the probability ratio</span></span>
 <span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>    prob_ratio <span class="op">=</span> new_prob <span class="op">/</span> old_prob</span>
@@ -800,7 +800,7 @@ For each word in:
 L_{CLIP(\text{trajectory})} =  \sum_t^T L_{CLIP(t)}
 \]</span></p>
 <p>for a sequence of length T, comprised of tokens t</p>
-<div id="cell-41" class="cell" data-outputid="a808d2eb-1fb3-4f40-d877-27855dac6eb8">
+<div id="cell-42" class="cell">
 <div class="sourceCode cell-code" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="co"># for a given trajectory of tokens, each generated with some probability</span></span>
 <span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>response_tokens <span class="op">=</span> [<span class="st">"I"</span>, <span class="st">"am"</span>, <span class="st">"feeling"</span>, <span class="st">"great"</span>, <span class="st">"and"</span>, <span class="st">"happy"</span>, <span class="st">"today,"</span>, <span class="st">"it's"</span>, <span class="st">"excellent"</span>]</span>
 <span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -865,7 +865,7 @@ L_{CLIP(\text{total})} =  \frac{1}{N} * \sum_i^N L_{CLIP(i)}
 \]</span></p>
 <p>over all N trajectories we sampled.</p>
 <p>So, let’s consider in this case, we sampled a second trajectory which we want to consider in our final <span class="math inline">\(L_{CLIP(\text{total})}\)</span> calculation.</p>
-<div id="cell-43" class="cell" data-outputid="ac31d727-054c-4c3e-abac-51526b541cfd">
+<div id="cell-44" class="cell">
 <div class="sourceCode cell-code" id="cb19"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="co"># for a different trajectory of tokens, each generated with some probability</span></span>
 <span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>response_2_tokens <span class="op">=</span> [<span class="st">"I"</span>, <span class="st">"am"</span>, <span class="st">"angry"</span>, <span class="st">"it's"</span>, <span class="st">"awful"</span>]</span>
 <span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1007,7 +1007,7 @@ L_{\text{total}} = L_{\text{CLIP}} + c_1 L_V - c_2 H[\pi]
 <h3 class="anchored" data-anchor-id="defining-the-reward">Defining the Reward</h3>
 <p>We’re going to use a very simple reward function for this example, similar to the <code>sentiment_reward</code> that we used earlier in this tutorial, but improve it slightly and make some changes to make it easier to learn.</p>
 <p>The changes we’ll make: - Assign word-based values for postive-ness and negative-ness, so some words get higher rewards than others - Multiply our positive score by <strong>5</strong> to get stronger bias towards positive words - Add a small positive bias for all sentences (0.1) so our reward is always positive. This makes for more stable training generally.</p>
-<div id="cell-56" class="cell">
+<div id="cell-57" class="cell">
 <div class="sourceCode cell-code" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Define improved sentiment reward function</span></span>
 <span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> get_sentiment_reward(text: <span class="bu">str</span>) <span class="op">-&gt;</span> <span class="bu">float</span>:</span>
 <span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>    positive_words <span class="op">=</span> {</span>
@@ -1038,7 +1038,7 @@ L_{\text{total}} = L_{\text{CLIP}} + c_1 L_V - c_2 H[\pi]
 <p>Finally, we load the tokenizer, which will turn our text into numbers the model can understand, and vice versa.</p>
 <p>Then, we define some generation arguments. These parameters control some more fine-grained details about how text is generated during training, and how we explore different text options during generation. In particular, these arguments determine how the model chooses a response to a prompt: - <strong><code>top_k</code></strong>: 0 When set to 0, there’s no limit on how many possible next tokens the model considers. If set to a value like 50, the model would only consider the 50 most likely next tokens and ignore all others. With top_k: 0, all possible tokens remain candidates, even unlikely ones. - <strong><code>top_p</code></strong>: 1.0 This controls “nucleus sampling” (also called “cumulative probability truncation”). A value of 1.0 means the model considers all tokens whose cumulative probability adds up to 100%. If set to 0.9, the model would only consider tokens whose cumulative probability adds up to 90%, effectively filtering out the long tail of unlikely tokens. - <strong><code>do_sample</code></strong>: True This determines whether the model uses sampling (probabilistic selection) or greedy decoding: - When <code>True</code>: The model randomly selects the next token based on the probability distribution, allowing for creativity and variation - When <code>False</code>: The model always picks the single most likely token (greedy decoding), leading to more predictable but potentially repetitive output</p>
 <p>These parameters allow the model to generate more diverse outputs for a given prompt, increasing the exploration.</p>
-<div id="cell-58" class="cell" data-outputid="934bd4e7-1596-45dc-ef2f-e5476cb66f23">
+<div id="cell-59" class="cell">
 <div class="sourceCode cell-code" id="cb22"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. load a pretrained model - with clear device placement</span></span>
 <span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a>device <span class="op">=</span> torch.device(<span class="st">"cuda"</span> <span class="cf">if</span> torch.cuda.is_available() <span class="cf">else</span> <span class="st">"cpu"</span>)</span>
 <span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> AutoModelForCausalLMWithValueHead.from_pretrained(<span class="st">"gpt2"</span>)</span>
@@ -1104,7 +1104,7 @@ L_{\text{total}} = L_{\text{CLIP}} + c_1 L_V - c_2 H[\pi]
 <h3 class="anchored" data-anchor-id="setting-up-the-ppo-configuration">Setting up the PPO Configuration</h3>
 <p>The PPO Trainer also allows certain configuration parameters. We’ll set some simple ones, but mostly leave this to the defaults. The learning rate is important here - we choose something quite small to keep training stable.</p>
 <p>Then, <a href="https://huggingface.co/docs/trl/v0.10.1/en/ppo_trainer"><code>PPOTrainer</code></a> just needs this config, the model, reference model, and tokenizer to eventually run the full PPO pipeline!</p>
-<div id="cell-60" class="cell">
+<div id="cell-61" class="cell">
 <div class="sourceCode cell-code" id="cb23"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. initialize trainer with minimal parameters</span></span>
 <span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>ppo_config <span class="op">=</span> {</span>
 <span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">"mini_batch_size"</span>: <span class="dv">1</span>,     <span class="co"># Process one example at a time</span></span>
@@ -1121,7 +1121,7 @@ L_{\text{total}} = L_{\text{CLIP}} + c_1 L_V - c_2 H[\pi]
 <h3 class="anchored" data-anchor-id="getting-a-starting-point">Getting a Starting Point</h3>
 <p>Let’s start by defining some simple prompts that <em>should</em> prompt positive responses. We’ll see how GPT-2 performs out of the box on these prompts by checking the reward that we get from its default responses.</p>
 <p>You’ll see below, GPT-2 isn’t exactly the most eloquent or coherent model. That’s ok! We’re really just trying to train it to give us a bunch of postive words anyway, which is simple enough of a task that it should learn it fine!</p>
-<div id="cell-62" class="cell" data-outputid="a6127b61-e7fe-4a83-eaed-d8a421979f08">
+<div id="cell-63" class="cell">
 <div class="sourceCode cell-code" id="cb24"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Training prompts</span></span>
 <span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a>prompts <span class="op">=</span> [</span>
 <span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">"I feel happy when"</span>,</span>
@@ -1187,7 +1187,7 @@ Average initial reward: 8.78</code></pre>
 <p>For each epoch &gt; For each of our prompts &gt;&gt; Tokenize the prompt &gt;&gt; &gt;&gt; Generate a response from the current version of the model (new policy) &gt;&gt; &gt;&gt; Calculate the reward of that response &gt;&gt; &gt;&gt; <strong>Give the PPO trainer the prompt, response, and corresponding reward</strong></p>
 <p>The magic really happens here: <strong>Give the PPO trainer the prompt, response, and corresponding reward</strong>. The <code>trl</code> library and <code>PPOTrainer</code> that we set up are aware of the model, reference model, and tokenizer. This step handles using the reward we passed in, as well as the prompt + response that corresponded to that reward to: - <strong>Calculate probabilities</strong>: Computes how likely the generated tokens were under both the current model (new policy) and reference model (old policy) - <strong>Compute advantage</strong>: Determines how much better or worse the generated response performed compared to what was expected - <strong>Apply the PPO objective</strong>: Uses the clipped PPO objective function to limit how much the model changes in a single step - <strong>Perform backpropagation</strong>: Updates the model weights to make high-reward responses more likely in the future - <strong>Update the value function</strong>: The value function (which is part of the model from <code>AutoModelForCausalLMWithValueHead</code>) estimates the expected reward for a given state is also updated. - <strong>Enforce KL divergence</strong>: Ensures the new policy doesn’t deviate too far from the old policy, maintaining coherent text generation - <strong>Return statistics</strong>: Provides metrics about the update like loss values, KL divergence, and entropy for monitoring the training process</p>
 <p>The line: <code>stats = ppo_trainer.step([query[0]], [response[0]], [rewards]))</code> encapsulates the core RL algorithm that enables the model to learn from the reward signal. It’s where the model actually learns to adjust its probability distribution to favor token sequences that lead to higher sentiment rewards. And <code>trl</code> does all of the hard stuff in the background for us!</p>
-<div id="cell-64" class="cell" data-outputid="9fd45d82-9612-4bdd-d5b1-7af91738e205">
+<div id="cell-65" class="cell">
 <div class="sourceCode cell-code" id="cb27"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">=== Starting Training ==="</span>)</span>
 <span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Prepare for tracking training statistics</span></span>
@@ -1450,7 +1450,7 @@ Reward: 0.10</code></pre>
 <section id="seeing-how-we-did" class="level3">
 <h3 class="anchored" data-anchor-id="seeing-how-we-did">Seeing How We Did</h3>
 <p>Finally, we can look a bit deeper to see how well we did. Let’s investigate in more depth: - <strong>Before vs After Comparison</strong>: For each prompt, we’ll compare the original model’s response with our RL-trained model’s response. This direct comparison helps us visualize the specific changes in text generation. - <strong>Individual Reward Metrics</strong>: We calculate the sentiment reward for both the original and trained responses. The difference between these scores shows how much our model has improved at generating positive text. - <strong>Aggregate Improvement</strong>: By averaging rewards across all prompts, we can quantify the overall improvement from RL training. A positive change indicates successful optimization toward our sentiment objective.</p>
-<div id="cell-66" class="cell" data-outputid="aad557ed-2293-4764-aa6e-a8883b048966">
+<div id="cell-67" class="cell">
 <div class="sourceCode cell-code" id="cb29"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Compare before/after</span></span>
 <span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">=== After Training Outputs ==="</span>)</span>
 <span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a>final_rewards <span class="op">=</span> []</span>
@@ -1539,7 +1539,7 @@ Change: +8.75</code></pre>
 <h2 class="anchored" data-anchor-id="collecting-human-feedback">Collecting Human Feedback</h2>
 <p>In RLHF, human judgments about model outputs are collected. Unlike our algorithmic reward function that automatically calculated a score, RLHF relies on actual human preferences.</p>
 <p>Typically, a real RLHF pipeline will involve humans doing pairwise comparisons of responses. Rather than asking humans to provide absolute scores, RLHF typically uses comparative judgments where annotators choose which of two responses they prefer. This involves: - <strong>Prompt Selection</strong>: A diverse set of prompts is created to cover different topics, skills, and potential failure modes. - <strong>Response Generation</strong>: For each prompt, the model generates multiple responses using different sampling parameters. - <strong>Human Annotation</strong>: Human annotators are presented with a prompt and two model-generated responses, then asked to select which one is better according to specific criteria.</p>
-<div id="cell-70" class="cell" data-outputid="c5d5c7c1-571f-4dcd-a9f4-9c731b0f068e">
+<div id="cell-71" class="cell">
 <div class="sourceCode cell-code" id="cb31"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Simple simulation of human preference collection interface</span></span>
 <span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> collect_human_preference(prompt, response_a, response_b):</span>
 <span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"Prompt: </span><span class="sc">{</span>prompt<span class="sc">}</span><span class="ch">\n</span><span class="ss">"</span>)</span>
@@ -1648,7 +1648,7 @@ Example 2: You chose the response_b over the response_a</code></pre>
 <p>Then, we can train a reward model based on our triplets <span class="math inline">\((x, y_w, y_l)\)</span>.</p>
 <p>Below is a very simplified example. Instead of a real neural network, we just use a function <code>simulate_reward_scores</code> to see how we could calculate the loss based on the preferences indicated in the last code cell. This function simply assigns a score to a response based purely on its length.</p>
 <p>In reality, this calculated loss would help a model readjust its predicted rewards.</p>
-<div id="cell-75" class="cell" data-outputid="4ce45382-f943-4d0c-ff15-ee49cd696157">
+<div id="cell-76" class="cell">
 <div class="sourceCode cell-code" id="cb33"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Simulate a reward model's outputs</span></span>
 <span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a><span class="co"># In reality, these would come from a neural network</span></span>
 <span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> simulate_reward_scores(response_a, response_b):</span>

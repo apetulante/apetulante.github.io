@@ -1,0 +1,2026 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.6.42">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="author" content="Abbie Petulante">
+<meta name="dcterms.date" content="2025-01-10">
+<meta name="description" content="A guide to how prompt caching - a modular approach to KV caching. We’ll talk through how and why this modular implementation works, and include a practical example of implementing it for LLaMa 3.2 1B.">
+
+<title>Prompt Caching – Abbie’s AI Tutorials</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="../../site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="../../site_libs/quarto-nav/headroom.min.js"></script>
+<script src="../../site_libs/clipboard/clipboard.min.js"></script>
+<script src="../../site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="../../site_libs/quarto-search/fuse.min.js"></script>
+<script src="../../site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="../../">
+<script src="../../site_libs/quarto-html/quarto.js"></script>
+<script src="../../site_libs/quarto-html/popper.min.js"></script>
+<script src="../../site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="../../site_libs/quarto-html/anchor.min.js"></script>
+<link href="../../site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="../../site_libs/quarto-html/quarto-syntax-highlighting-2f5df379a58b258e96c21c0638c20c03.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="../../site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="../../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="../../site_libs/bootstrap/bootstrap-6bd9cfa162949bde0a231f530c97869d.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<link rel="stylesheet" href="../../styles.css">
+</head>
+
+<body class="nav-fixed fullcontent">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top quarto-banner">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a class="navbar-brand" href="../../index.html">
+    <span class="navbar-title">Abbie’s AI Tutorials</span>
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="Search"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll ms-auto">
+  <li class="nav-item">
+    <a class="nav-link" href="../../about.html"> 
+<span class="menu-text">About</span></a>
+  </li>  
+  <li class="nav-item compact">
+    <a class="nav-link" href="https://github.com/apetulante"> <i class="bi bi-github" role="img">
+</i> 
+<span class="menu-text"></span></a>
+  </li>  
+  <li class="nav-item compact">
+    <a class="nav-link" href="https://www.linkedin.com/in/apetulante/"> <i class="bi bi-linkedin" role="img">
+</i> 
+<span class="menu-text"></span></a>
+  </li>  
+</ul>
+          </div> <!-- /navcollapse -->
+            <div class="quarto-navbar-tools">
+</div>
+      </div> <!-- /container-fluid -->
+    </nav>
+</header>
+<!-- content -->
+<header id="title-block-header" class="quarto-title-block default page-columns page-full">
+  <div class="quarto-title-banner page-columns page-full">
+    <div class="quarto-title column-body">
+      <h1 class="title">Prompt Caching</h1>
+                  <div>
+        <div class="description">
+          A guide to how prompt caching - a modular approach to KV caching. We’ll talk through how and why this modular implementation works, and include a practical example of implementing it for LLaMa 3.2 1B.
+        </div>
+      </div>
+                          <div class="quarto-categories">
+                <div class="quarto-category">caching</div>
+                <div class="quarto-category">LLMs</div>
+                <div class="quarto-category">inferencing</div>
+              </div>
+                  </div>
+  </div>
+    
+  
+  <div class="quarto-title-meta">
+
+      <div>
+      <div class="quarto-title-meta-heading">Author</div>
+      <div class="quarto-title-meta-contents">
+               <p>Abbie Petulante </p>
+            </div>
+    </div>
+      
+      <div>
+      <div class="quarto-title-meta-heading">Published</div>
+      <div class="quarto-title-meta-contents">
+        <p class="date">January 10, 2025</p>
+      </div>
+    </div>
+    
+      
+    </div>
+    
+  
+  </header><div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+<!-- margin-sidebar -->
+    
+<!-- main -->
+<main class="content quarto-banner-title-block" id="quarto-document-content">
+
+
+
+
+
+<section id="prompt-caching-with-llama-3.2" class="level1">
+<h1>Prompt Caching with LLaMa 3.2</h1>
+<blockquote class="blockquote">
+<p>This notebook provides a detailed exploration of prompt caching using Llama 3.2, based on the paper “<a href="https://arxiv.org/pdf/2311.04934"><em>Prompt Cache: Modular Attention Reuse for Low-Latency Inference</em></a>”. We’ll implement prompt caching from scratch and demonstrate its benefits for inference speed.</p>
+</blockquote>
+<p><a target="_blank" href="https://colab.research.google.com/github/apetulante/Tutorials/blob/master/Inferencing/prompt_caching.ipynb"> <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"> </a></p>
+</section>
+<section id="introduction" class="level1">
+<h1>Introduction</h1>
+<p>Before we continue, let’s break down the key concepts from the prompt cache paper.</p>
+<p><strong>I highly, highly recommend going through my <code>kv_caching.ipynb</code> notebook before this one if you aren’t already familiar with kv caching!</strong> I will give a <em>very</em> brief overview in this notebook, but for the most part assume that most of the details of why and how KV caching is done are already understood by the reader.</p>
+<p>The core idea that the paper observes is that many prompts share common segments (like system messages or templates), but these segments get recomputed every time they appear. Even with KV caching, the cache is stored <em>during generation of a single output</em> and, while it <em>can</em> be re-used for another generation with the identical prompt, it’s typically erased once the prompt changes, even if only slightly. The goal of prompt caching is to precompute and store attention states for common segments so that they can be easily reused.</p>
+<section id="key-components" class="level2">
+<h2 class="anchored" data-anchor-id="key-components">Key Components:</h2>
+<p><strong>Prompt Modules:</strong></p>
+<p>Prompt modules are reusable segments of text (like system messages or documents) that are explicitly defined in a schema with their own position IDs, allowing their attention states to be cached and reused. The modules are defined using a markup language that specifies how they can be combined and parameterized, similar to how you might define reusable components in XML.</p>
+<p><strong>Schemas:</strong></p>
+<p>A schema defines how prompt modules can be combined. They specify what are valid positions and relationships between modules. Example: A schema might specify that a system message comes first, followed by either a code snippet or a document, then a user query. Each of these components of a schema are their own prompt modules.</p>
+<p><strong>Storage:</strong></p>
+<p>For each module, the actual data that gets stored is:</p>
+<ul>
+<li>The K (Key) and V (Value) attention states</li>
+<li>The position IDs used when computing those states</li>
+<li>The module’s boundaries and metadata</li>
+</ul>
+<p><strong>Mixing and Matching:</strong></p>
+<p>Each module reserves a “slot” of position IDs, and when combining modules, original position IDs are preserved within each module. This works because transformer attention is invariant to gaps in position IDs The K,V states from different modules can be concatenated as long as their relative positions are maintained.</p>
+</section>
+<section id="the-key-idea" class="level2">
+<h2 class="anchored" data-anchor-id="the-key-idea">The Key Idea:</h2>
+<p>While the underlying caching methodology that’s used by prompt caching is just storing the KV states, the concept of prompt modules provides a structured way to:</p>
+<ol type="1">
+<li>Define what pieces of prompts are reusable</li>
+<li>Manage their position assignments</li>
+<li>Control how they can be combined</li>
+<li>Handle variations through parameters</li>
+</ol>
+<p>Below is a figure from the paper demostrating how traditional generation, generation with KV cache, and generation with a prompt cache are all different.</p>
+<p><img src="images/paper_fig1.png" width="100%" style="display: block; margin-left: auto; margin-right: auto;"></p>
+</section>
+</section>
+<section id="introduction-and-setup" class="level1">
+<h1>Introduction and Setup</h1>
+<p>Before we get any deeper into code, let’s install necessary packages and import dependencies:</p>
+<div id="cell-7" class="cell">
+<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Install required packages</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="op">!</span>pip install <span class="op">-</span>q <span class="op">--</span>upgrade transformers datasets</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div id="cell-8" class="cell">
+<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Standard libraries</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> re</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> os</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> time</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> typing <span class="im">import</span> List, Tuple, Dict, Set, Optional</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> dataclasses <span class="im">import</span> dataclass</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> enum <span class="im">import</span> Enum</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a><span class="co"># AI/ML Libraries</span></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> transformers <span class="im">import</span> AutoTokenizer, AutoModelForCausalLM</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> transformers.cache_utils <span class="im">import</span> DynamicCache</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div id="cell-9" class="cell">
+<div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Check PyTorch version and CUDA availability</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"PyTorch version: </span><span class="sc">{</span>torch<span class="sc">.</span>__version__<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"CUDA available: </span><span class="sc">{</span>torch<span class="sc">.</span>cuda<span class="sc">.</span>is_available()<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> torch.cuda.is_available():</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"CUDA device: </span><span class="sc">{</span>torch<span class="sc">.</span>cuda<span class="sc">.</span>get_device_name(<span class="dv">0</span>)<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"Available GPU memory: </span><span class="sc">{</span>torch<span class="sc">.</span>cuda<span class="sc">.</span>get_device_properties(<span class="dv">0</span>)<span class="sc">.</span>total_memory <span class="op">/</span> <span class="dv">1024</span><span class="op">**</span><span class="dv">3</span><span class="sc">:.2f}</span><span class="ss"> GB"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>PyTorch version: 2.5.1+cu121
+CUDA available: True
+CUDA device: Tesla T4
+Available GPU memory: 14.75 GB</code></pre>
+</div>
+</div>
+</section>
+<section id="loading-and-testing-our-model" class="level1">
+<h1>Loading and Testing our Model</h1>
+<p>Let’s start by loading a small LLM to demonstrate these concepts, and looking at its output before we do anything. We’ll use LLaMa 3.2 1B. This model is excellent for this example because: 1. It is small enough to run on smaller GPUs 2. It uses a relatively simple transformer architecture, making it easier to understand the core concepts 3. Despite its small size, it produces coherent enough outputs to demonstrate the effects of caching on generation</p>
+<section id="hugging-face-authentication" class="level2">
+<h2 class="anchored" data-anchor-id="hugging-face-authentication">Hugging Face Authentication</h2>
+<p>LLaMa 3.2 requires authentication with Hugging Face to access the model. You’ll need to: 1. Have a Hugging Face account 2. Accept the LLaMa 3.2 model terms of use on the Hugging Face model page 3. Create an access token on Hugging Face (https://huggingface.co/settings/tokens)</p>
+<p>After you have your access token and have accepted the terms, the code below will help you log in:</p>
+<div id="cell-12" class="cell">
+<div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> huggingface_hub <span class="im">import</span> login</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> getpass</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>token <span class="op">=</span> getpass.getpass(<span class="st">"Enter your Hugging Face token: "</span>)</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>login(token<span class="op">=</span>token)</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Verify login</span></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Login status: Authenticated with Hugging Face"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Enter your Hugging Face token: ··········
+Login status: Authenticated with Hugging Face</code></pre>
+</div>
+</div>
+<div id="cell-13" class="cell">
+<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>model_name <span class="op">=</span> <span class="st">"meta-llama/Llama-3.2-1B"</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>tokenizer <span class="op">=</span> AutoTokenizer.from_pretrained(model_name)</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> AutoModelForCausalLM.from_pretrained(model_name)</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>device <span class="op">=</span> torch.device(<span class="st">"cuda"</span> <span class="cf">if</span> torch.cuda.is_available() <span class="cf">else</span> <span class="st">"cpu"</span>)</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>model.to(device)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display">
+<pre><code>LlamaForCausalLM(
+  (model): LlamaModel(
+    (embed_tokens): Embedding(128256, 2048)
+    (layers): ModuleList(
+      (0-15): 16 x LlamaDecoderLayer(
+        (self_attn): LlamaAttention(
+          (q_proj): Linear(in_features=2048, out_features=2048, bias=False)
+          (k_proj): Linear(in_features=2048, out_features=512, bias=False)
+          (v_proj): Linear(in_features=2048, out_features=512, bias=False)
+          (o_proj): Linear(in_features=2048, out_features=2048, bias=False)
+        )
+        (mlp): LlamaMLP(
+          (gate_proj): Linear(in_features=2048, out_features=8192, bias=False)
+          (up_proj): Linear(in_features=2048, out_features=8192, bias=False)
+          (down_proj): Linear(in_features=8192, out_features=2048, bias=False)
+          (act_fn): SiLU()
+        )
+        (input_layernorm): LlamaRMSNorm((2048,), eps=1e-05)
+        (post_attention_layernorm): LlamaRMSNorm((2048,), eps=1e-05)
+      )
+    )
+    (norm): LlamaRMSNorm((2048,), eps=1e-05)
+    (rotary_emb): LlamaRotaryEmbedding()
+  )
+  (lm_head): Linear(in_features=2048, out_features=128256, bias=False)
+)</code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="inspecting-the-llama-architecture" class="level1">
+<h1>Inspecting the LLaMa Architecture</h1>
+<p>Let’s break down the Llama architecture with a focus on the parts relevant to prompt caching!</p>
+<p><strong>Overall Structure:</strong></p>
+<ul>
+<li>The model has 16 layers of LlamaDecoderLayer (seen in <code>(0-15): 16 x</code>)</li>
+<li>Each layer has a self-attention block and an MLP block</li>
+<li>The embedding dimension is 2048 (seen in many places)</li>
+</ul>
+<p><strong>The Most Important Part - The Attention Block:</strong></p>
+<pre><code>(self_attn): LlamaAttention(
+    (q_proj): Linear(in_features=2048, out_features=2048, bias=False)
+    (k_proj): Linear(in_features=2048, out_features=512, bias=False)
+    (v_proj): Linear(in_features=2048, out_features=512, bias=False)
+    (o_proj): Linear(in_features=2048, out_features=2048, bias=False)
+)</code></pre>
+<p>This shows us:</p>
+<ul>
+<li>Q (query) projector takes 2048 dimensions to 2048</li>
+<li>K (key) projector takes 2048 dimensions to 512</li>
+<li>V (value) projector takes 2048 dimensions to 512</li>
+<li>The output projector takes 2048 back to 2048</li>
+</ul>
+<p>The 512 dimension is actually head_dim <span class="math inline">\(\times\)</span> num_heads. Since <span class="math inline">\(K\)</span> and <span class="math inline">\(V\)</span> are 512, and Llama uses 8 KV heads (we will see this below), each head must be working with 64-dimensional vectors (512/32 = 64).</p>
+<p>We can see this when we look at the model’s config:</p>
+<div id="cell-15" class="cell">
+<div class="sourceCode cell-code" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Get model configuration</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>config <span class="op">=</span> model.config</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Model Configuration:"</span>)</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Number of heads: </span><span class="sc">{</span>config<span class="sc">.</span>num_attention_heads<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Hidden size: </span><span class="sc">{</span>config<span class="sc">.</span>hidden_size<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Head dimension: </span><span class="sc">{</span>config<span class="sc">.</span>hidden_size <span class="op">//</span> config<span class="sc">.</span>num_attention_heads<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Get first layer's attention module</span></span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>first_layer <span class="op">=</span> model.model.layers[<span class="dv">0</span>]</span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>attention <span class="op">=</span> first_layer.self_attn</span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a><span class="co"># Print key dimensions</span></span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">Attention Component Dimensions:"</span>)</span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Q projection: </span><span class="sc">{</span>attention<span class="sc">.</span>q_proj<span class="sc">.</span>weight<span class="sc">.</span>shape<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"K projection: </span><span class="sc">{</span>attention<span class="sc">.</span>k_proj<span class="sc">.</span>weight<span class="sc">.</span>shape<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"V projection: </span><span class="sc">{</span>attention<span class="sc">.</span>v_proj<span class="sc">.</span>weight<span class="sc">.</span>shape<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a><span class="co"># Print attention attributes</span></span>
+<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">Attention Module Attributes:"</span>)</span>
+<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> name, value <span class="kw">in</span> <span class="bu">vars</span>(attention).items():</span>
+<span id="cb10-21"><a href="#cb10-21" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="kw">not</span> name.startswith(<span class="st">'_'</span>):</span>
+<span id="cb10-22"><a href="#cb10-22" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>name<span class="sc">}</span><span class="ss">: </span><span class="sc">{</span>value<span class="sc">}</span><span class="ss">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Model Configuration:
+Number of heads: 32
+Hidden size: 2048
+Head dimension: 64
+
+Attention Component Dimensions:
+Q projection: torch.Size([2048, 2048])
+K projection: torch.Size([512, 2048])
+V projection: torch.Size([512, 2048])
+
+Attention Module Attributes:
+training: False
+config: LlamaConfig {
+  "_attn_implementation_autoset": true,
+  "_name_or_path": "meta-llama/Llama-3.2-1B",
+  "architectures": [
+    "LlamaForCausalLM"
+  ],
+  "attention_bias": false,
+  "attention_dropout": 0.0,
+  "bos_token_id": 128000,
+  "eos_token_id": 128001,
+  "head_dim": 64,
+  "hidden_act": "silu",
+  "hidden_size": 2048,
+  "initializer_range": 0.02,
+  "intermediate_size": 8192,
+  "max_position_embeddings": 131072,
+  "mlp_bias": false,
+  "model_type": "llama",
+  "num_attention_heads": 32,
+  "num_hidden_layers": 16,
+  "num_key_value_heads": 8,
+  "pretraining_tp": 1,
+  "rms_norm_eps": 1e-05,
+  "rope_scaling": {
+    "factor": 32.0,
+    "high_freq_factor": 4.0,
+    "low_freq_factor": 1.0,
+    "original_max_position_embeddings": 8192,
+    "rope_type": "llama3"
+  },
+  "rope_theta": 500000.0,
+  "tie_word_embeddings": true,
+  "torch_dtype": "bfloat16",
+  "transformers_version": "4.48.0",
+  "use_cache": true,
+  "vocab_size": 128256
+}
+
+layer_idx: 0
+head_dim: 64
+num_key_value_groups: 4
+scaling: 0.125
+attention_dropout: 0.0
+is_causal: True</code></pre>
+</div>
+</div>
+<p><strong>One Note:</strong> Llama 3.2 uses <em>Grouped Query Attention (GQA)</em>, where:</p>
+<ul>
+<li>There are 32 query (<span class="math inline">\(Q\)</span>) heads</li>
+<li>But only 8 key-value (<span class="math inline">\(K,V\)</span>) heads</li>
+<li>So each <span class="math inline">\(K,V\)</span> head is shared by 4 <span class="math inline">\(Q\)</span> heads (32/8 = 4)</li>
+</ul>
+<p>The config shows 32 heads (the total number of <span class="math inline">\(Q\)</span> heads), but <code>num_key_value_groups: 4</code> means each <span class="math inline">\(K,V\)</span> head is shared by 4 <span class="math inline">\(Q\)</span> heads</p>
+<p>This also explains in more detail the the projection shapes we saw above:</p>
+<ul>
+<li><span class="math inline">\(Q\)</span> projection: [2048, 2048] -&gt; 32 heads × 64 dimensions = 2048</li>
+<li><span class="math inline">\(K,V\)</span> projections: [512, 2048] -&gt; 8 heads × 64 dimensions = 512</li>
+</ul>
+<p>So when we’re caching <span class="math inline">\(K,V\)</span> states, we only need to store 8 heads worth of information, even though the model is using 32 <span class="math inline">\(Q\)</span> heads during attention computation. This is a memory optimization technique that Llama uses!</p>
+<section id="inspecting-the-cache" class="level2">
+<h2 class="anchored" data-anchor-id="inspecting-the-cache">Inspecting the Cache</h2>
+<p>When caching, we’re storing the outputs of the <code>k_proj</code> and <code>v_proj</code> for each layer. The cache shape would be:</p>
+<p>Batch dimension $ $ Number of layers (16) <span class="math inline">\(\times\)</span> 2 tensors per layer (<span class="math inline">\(K\)</span> and <span class="math inline">\(V\)</span>)</p>
+<p>→ For each tensor: <code>[num_heads=8, seq_len, head_dim=64]</code></p>
+<p>We can see this by examining the cache:</p>
+<div id="cell-19" class="cell">
+<div class="sourceCode cell-code" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>example_prompt <span class="op">=</span> <span class="st">"This is an example input."</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>input_ids <span class="op">=</span> tokenizer(example_prompt, return_tensors<span class="op">=</span><span class="st">"pt"</span>).input_ids.to(device)</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="co">#How the word was tokenized</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">Tokens:"</span>)</span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i, token_id <span class="kw">in</span> <span class="bu">enumerate</span>(input_ids[<span class="dv">0</span>]):</span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>i<span class="sc">}</span><span class="ss">: </span><span class="sc">{</span>tokenizer<span class="sc">.</span>decode([token_id])<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"( length:"</span>, <span class="bu">len</span>(input_ids[<span class="dv">0</span>]), <span class="st">")</span><span class="ch">\n</span><span class="st">"</span>)</span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a>outputs <span class="op">=</span> model(</span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a>    input_ids,</span>
+<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a>    use_cache<span class="op">=</span><span class="va">True</span>, <span class="co"># the model is smart, and will keep track of what must be cached for us</span></span>
+<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a>    return_dict<span class="op">=</span><span class="va">True</span></span>
+<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a>cache <span class="op">=</span> outputs.past_key_values <span class="co"># get those cached values here</span></span>
+<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Cache structure:"</span>)</span>
+<span id="cb12-19"><a href="#cb12-19" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Number of layers: </span><span class="sc">{</span><span class="bu">len</span>(cache)<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb12-20"><a href="#cb12-20" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Items per layer: </span><span class="sc">{</span><span class="bu">len</span>(cache[<span class="dv">0</span>])<span class="sc">}</span><span class="ss">  # K and V"</span>)</span>
+<span id="cb12-21"><a href="#cb12-21" aria-hidden="true" tabindex="-1"></a>k_states, v_states <span class="op">=</span> cache[<span class="dv">0</span>]  <span class="co"># Look at first layer</span></span>
+<span id="cb12-22"><a href="#cb12-22" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"K states shape: </span><span class="sc">{</span>k_states<span class="sc">.</span>shape<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb12-23"><a href="#cb12-23" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"V states shape: </span><span class="sc">{</span>v_states<span class="sc">.</span>shape<span class="sc">}</span><span class="ss">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+Tokens:
+0: &lt;|begin_of_text|&gt;
+1: This
+2:  is
+3:  an
+4:  example
+5:  input
+6: .
+( length: 7 )
+
+Cache structure:
+Number of layers: 16
+Items per layer: 2  # K and V
+K states shape: torch.Size([1, 8, 7, 64])
+V states shape: torch.Size([1, 8, 7, 64])</code></pre>
+</div>
+</div>
+<p>Breaking down the dimensions of these output <span class="math inline">\(K\)</span> and <span class="math inline">\(V\)</span> shapes: <code>torch.Size([1, 8, 7, 64])</code></p>
+<ul>
+<li><strong>First dimension [1]</strong>: This is the batch size. Since we’re processing one prompt at a time, it’s 1.</li>
+<li><strong>Second dimension [8]</strong>: This represents the number of attention heads. Each head can learn to attend to different aspects of the input.</li>
+<li><strong>Third dimension [7]</strong>: Sequence length. We can see that our example prompt was tokenized as 7 tokens.</li>
+<li><strong>Fourth dimension [64]</strong>: This is the dimension per head (head_dim). Each head processes attention in a 64-dimensional space.</li>
+</ul>
+<p>So when we store <span class="math inline">\(K\)</span> and <span class="math inline">\(V\)</span> states, we’re storing:</p>
+<p>For each layer (16 of them):</p>
+<blockquote class="blockquote">
+<p>For both <span class="math inline">\(K\)</span> and <span class="math inline">\(V\)</span>:</p>
+<blockquote class="blockquote">
+<p>A tensor that has:</p>
+<blockquote class="blockquote">
+<p>Each head’s (8) representation of each token (seq_length) as a 64-dimensional vector</p>
+<p>→ an <code>[8,seq_length,64]</code> vector</p>
+</blockquote>
+<p>→ 2 <code>[8,seq_length,64]</code> vectors</p>
+</blockquote>
+<p>→ 16 <span class="math inline">\(\times\)</span> 2 <code>[8,seq_length,64]</code> vectors for a given prompt that’s tokenized into <code>seq_length</code> tokens</p>
+</blockquote>
+<p>This is exactly what we store in a prompt module - these KV states for each layer.</p>
+<p>#A Basic Implementation</p>
+<p>Let’s move on to actually building a prompt caching implementation. We’ll start by going over the core components to prompt caching and exploring how we use them in practice.</p>
+</section>
+<section id="core-component-1-prompt-module" class="level2">
+<h2 class="anchored" data-anchor-id="core-component-1-prompt-module">Core Component #1: Prompt Module</h2>
+<p>Let’s start by investigating the concept of a prompt module more in depth, and building a simple one.</p>
+<p>When we cache a prompt module, we’re storing:</p>
+<ul>
+<li><p>The module’s text and metadata (name, position info, etc.)</p></li>
+<li><p>All those KV states we just analyzed:</p>
+<p>For each of the 16 layers</p>
+<p>Both K and V for each layer</p>
+<p>Each with shape [1, 8, seq_length, 64]</p></li>
+</ul>
+<section id="a-simple-example-prompt-module" class="level3">
+<h3 class="anchored" data-anchor-id="a-simple-example-prompt-module">A (simple) example prompt module</h3>
+<p>Let’s start by building the framework for a very simple prompt module. Here, we’ll build a simple prompt module class that can create a cache for us for a given prompt section.</p>
+<div id="cell-25" class="cell">
+<div class="sourceCode cell-code" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SimplePromptModule:</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, text: <span class="bu">str</span>):</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.text <span class="op">=</span> text</span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.cached_kv_states <span class="op">=</span> <span class="va">None</span></span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.input_length <span class="op">=</span> <span class="va">None</span></span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> compute_and_cache_states(<span class="va">self</span>, model, tokenizer):</span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>        tokens <span class="op">=</span> tokenizer(</span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>.text,</span>
+<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a>            return_tensors<span class="op">=</span><span class="st">"pt"</span>,</span>
+<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a>            return_attention_mask<span class="op">=</span><span class="va">True</span></span>
+<span id="cb14-12"><a href="#cb14-12" aria-hidden="true" tabindex="-1"></a>        ).to(model.device)</span>
+<span id="cb14-13"><a href="#cb14-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-14"><a href="#cb14-14" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.input_length <span class="op">=</span> tokens.input_ids.shape[<span class="dv">1</span>]</span>
+<span id="cb14-15"><a href="#cb14-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-16"><a href="#cb14-16" aria-hidden="true" tabindex="-1"></a>        <span class="cf">with</span> torch.no_grad():</span>
+<span id="cb14-17"><a href="#cb14-17" aria-hidden="true" tabindex="-1"></a>            outputs <span class="op">=</span> model(</span>
+<span id="cb14-18"><a href="#cb14-18" aria-hidden="true" tabindex="-1"></a>                tokens.input_ids,</span>
+<span id="cb14-19"><a href="#cb14-19" aria-hidden="true" tabindex="-1"></a>                attention_mask<span class="op">=</span>tokens.attention_mask,</span>
+<span id="cb14-20"><a href="#cb14-20" aria-hidden="true" tabindex="-1"></a>                use_cache<span class="op">=</span><span class="va">True</span>,</span>
+<span id="cb14-21"><a href="#cb14-21" aria-hidden="true" tabindex="-1"></a>                return_dict<span class="op">=</span><span class="va">True</span></span>
+<span id="cb14-22"><a href="#cb14-22" aria-hidden="true" tabindex="-1"></a>            )</span>
+<span id="cb14-23"><a href="#cb14-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-24"><a href="#cb14-24" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.cached_kv_states <span class="op">=</span> outputs.past_key_values</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div id="cell-26" class="cell">
+<div class="sourceCode cell-code" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Create and cache a simple module</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>system_prompt <span class="op">=</span> SimplePromptModule(<span class="st">"You are a helpful AI assistant."</span>)</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>system_prompt.compute_and_cache_states(model, tokenizer)</span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Let's look at what we cached</span></span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Number of layers:"</span>, <span class="bu">len</span>(system_prompt.cached_kv_states))</span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a>first_layer_k, first_layer_v <span class="op">=</span> system_prompt.cached_kv_states[<span class="dv">0</span>]</span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"K shape:"</span>, first_layer_k.shape)</span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"V shape:"</span>, first_layer_v.shape)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Number of layers: 16
+K shape: torch.Size([1, 8, 8, 64])
+V shape: torch.Size([1, 8, 8, 64])</code></pre>
+</div>
+</div>
+<p>Now, we can write a simple function that calls on this cache at generation time.</p>
+<p>This function is largely copied from the end of my <strong><code>kv_caching.ipynb</code></strong> notebook, so I won’t go into too many details about the exact details of this function, but we’ll utilize our saved KV states and feed them back into the model as we generate the tokens that follow our cached system prompt + new prompt.</p>
+<div id="cell-28" class="cell">
+<div class="sourceCode cell-code" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> generate_with_cached_prompt(</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>    model,</span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>    tokenizer,</span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>    prompt_module: SimplePromptModule,</span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>    continuation: <span class="bu">str</span>,</span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>    max_length: <span class="bu">int</span> <span class="op">=</span> <span class="dv">50</span>,</span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>    temperature <span class="op">=</span> <span class="fl">.7</span></span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a>):</span>
+<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Get tokens for the continuation</span></span>
+<span id="cb17-10"><a href="#cb17-10" aria-hidden="true" tabindex="-1"></a>    continuation_ids <span class="op">=</span> tokenizer.encode(continuation, return_tensors<span class="op">=</span><span class="st">'pt'</span>).to(model.device)</span>
+<span id="cb17-11"><a href="#cb17-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-12"><a href="#cb17-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">with</span> torch.no_grad():</span>
+<span id="cb17-13"><a href="#cb17-13" aria-hidden="true" tabindex="-1"></a>        <span class="co"># First forward pass using continuation and cached states</span></span>
+<span id="cb17-14"><a href="#cb17-14" aria-hidden="true" tabindex="-1"></a>        outputs <span class="op">=</span> model(</span>
+<span id="cb17-15"><a href="#cb17-15" aria-hidden="true" tabindex="-1"></a>            continuation_ids,</span>
+<span id="cb17-16"><a href="#cb17-16" aria-hidden="true" tabindex="-1"></a>            past_key_values<span class="op">=</span>prompt_module.cached_kv_states,</span>
+<span id="cb17-17"><a href="#cb17-17" aria-hidden="true" tabindex="-1"></a>            use_cache<span class="op">=</span><span class="va">True</span>,</span>
+<span id="cb17-18"><a href="#cb17-18" aria-hidden="true" tabindex="-1"></a>            return_dict<span class="op">=</span><span class="va">True</span></span>
+<span id="cb17-19"><a href="#cb17-19" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb17-20"><a href="#cb17-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-21"><a href="#cb17-21" aria-hidden="true" tabindex="-1"></a>        generated_sequence <span class="op">=</span> continuation_ids</span>
+<span id="cb17-22"><a href="#cb17-22" aria-hidden="true" tabindex="-1"></a>        generated_text <span class="op">=</span> []</span>
+<span id="cb17-23"><a href="#cb17-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-24"><a href="#cb17-24" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Generate tokens one at a time</span></span>
+<span id="cb17-25"><a href="#cb17-25" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(max_length):</span>
+<span id="cb17-26"><a href="#cb17-26" aria-hidden="true" tabindex="-1"></a>            <span class="co"># Get logits for next token prediction</span></span>
+<span id="cb17-27"><a href="#cb17-27" aria-hidden="true" tabindex="-1"></a>            next_token_logits <span class="op">=</span> outputs.logits[:, <span class="op">-</span><span class="dv">1</span>, :]</span>
+<span id="cb17-28"><a href="#cb17-28" aria-hidden="true" tabindex="-1"></a>            next_token <span class="op">=</span> torch.multinomial(torch.softmax(next_token_logits <span class="op">/</span> temperature, dim<span class="op">=-</span><span class="dv">1</span>), num_samples<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb17-29"><a href="#cb17-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-30"><a href="#cb17-30" aria-hidden="true" tabindex="-1"></a>            <span class="co"># Keep track of the sequence</span></span>
+<span id="cb17-31"><a href="#cb17-31" aria-hidden="true" tabindex="-1"></a>            generated_sequence <span class="op">=</span> torch.cat([generated_sequence, next_token], dim<span class="op">=-</span><span class="dv">1</span>)</span>
+<span id="cb17-32"><a href="#cb17-32" aria-hidden="true" tabindex="-1"></a>            generated_text.append(next_token.item())</span>
+<span id="cb17-33"><a href="#cb17-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-34"><a href="#cb17-34" aria-hidden="true" tabindex="-1"></a>            <span class="co"># Forward pass for next token</span></span>
+<span id="cb17-35"><a href="#cb17-35" aria-hidden="true" tabindex="-1"></a>            outputs <span class="op">=</span> model(</span>
+<span id="cb17-36"><a href="#cb17-36" aria-hidden="true" tabindex="-1"></a>                next_token,</span>
+<span id="cb17-37"><a href="#cb17-37" aria-hidden="true" tabindex="-1"></a>                use_cache<span class="op">=</span><span class="va">True</span>,</span>
+<span id="cb17-38"><a href="#cb17-38" aria-hidden="true" tabindex="-1"></a>                past_key_values<span class="op">=</span>outputs.past_key_values,</span>
+<span id="cb17-39"><a href="#cb17-39" aria-hidden="true" tabindex="-1"></a>                return_dict<span class="op">=</span><span class="va">True</span></span>
+<span id="cb17-40"><a href="#cb17-40" aria-hidden="true" tabindex="-1"></a>            )</span>
+<span id="cb17-41"><a href="#cb17-41" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-42"><a href="#cb17-42" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> next_token.item() <span class="op">==</span> tokenizer.eos_token_id:</span>
+<span id="cb17-43"><a href="#cb17-43" aria-hidden="true" tabindex="-1"></a>                <span class="cf">break</span></span>
+<span id="cb17-44"><a href="#cb17-44" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-45"><a href="#cb17-45" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> tokenizer.decode(generated_text, skip_special_tokens<span class="op">=</span><span class="va">True</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div id="cell-29" class="cell">
+<div class="sourceCode cell-code" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>output <span class="op">=</span> generate_with_cached_prompt(</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>    model,</span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>    tokenizer,</span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>    system_prompt, <span class="co"># use the system prompt, which we've now conventiently already cached!</span></span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">"Tell me about neural networks."</span></span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">Output:"</span>, output)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+Output:  It's a topic that's a little confusing. Explain the basics of artificial intelligence and neural networks, and the different kinds of artificial neural networks. I'm confused about the difference between feedforward and recurrent neural networks. I want to know which type of</code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="core-component-2-prompt-schemas" class="level2">
+<h2 class="anchored" data-anchor-id="core-component-2-prompt-schemas">Core Component #2: Prompt Schemas</h2>
+<p>So far, we’ve seen just storing the KV states for a single system prompt, and inserting those states at the beginning of generation. We’ve seen what organizing it as a module could look like, but besides that, our implementation so far has largely been just standard KV caching.</p>
+<p>The real idea behind prompt caching is that different prompt modules can be mixed and matched together. This is done with <strong>prompt schemas</strong>, which are the higher-level containers that defines:</p>
+<ol type="1">
+<li>What modules exist</li>
+<li>Their positions/ordering</li>
+<li>How they can be combined</li>
+<li>Parameters they can take</li>
+</ol>
+<section id="a-simple-schema-example" class="level3">
+<h3 class="anchored" data-anchor-id="a-simple-schema-example">A (simple) schema example</h3>
+<p>We’ll start with a very simple schema implementation first, since it provides the structural foundation for how modules work.</p>
+<p>The schema below will give us a minimal foundation that just:</p>
+<ul>
+<li>Stores modules by name</li>
+<li>Can cache all modules at once</li>
+</ul>
+<div id="cell-32" class="cell">
+<div class="sourceCode cell-code" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SimpleSchema:</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""A basic schema that just stores and manages prompt modules."""</span></span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, name: <span class="bu">str</span>):</span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.name <span class="op">=</span> name</span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.modules <span class="op">=</span> {}  <span class="co"># name -&gt; SimplePromptModule</span></span>
+<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-8"><a href="#cb20-8" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> add_module(<span class="va">self</span>, name: <span class="bu">str</span>, text: <span class="bu">str</span>):</span>
+<span id="cb20-9"><a href="#cb20-9" aria-hidden="true" tabindex="-1"></a>        <span class="co">"""Add a module to the schema."""</span></span>
+<span id="cb20-10"><a href="#cb20-10" aria-hidden="true" tabindex="-1"></a>        module <span class="op">=</span> SimplePromptModule(text)</span>
+<span id="cb20-11"><a href="#cb20-11" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.modules[name] <span class="op">=</span> module</span>
+<span id="cb20-12"><a href="#cb20-12" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> module</span>
+<span id="cb20-13"><a href="#cb20-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-14"><a href="#cb20-14" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> cache_all(<span class="va">self</span>, model, tokenizer):</span>
+<span id="cb20-15"><a href="#cb20-15" aria-hidden="true" tabindex="-1"></a>        <span class="co">"""Compute and cache states for all modules."""</span></span>
+<span id="cb20-16"><a href="#cb20-16" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f"Caching states for schema '</span><span class="sc">{</span><span class="va">self</span><span class="sc">.</span>name<span class="sc">}</span><span class="ss">':"</span>)</span>
+<span id="cb20-17"><a href="#cb20-17" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> name, module <span class="kw">in</span> <span class="va">self</span>.modules.items():</span>
+<span id="cb20-18"><a href="#cb20-18" aria-hidden="true" tabindex="-1"></a>            <span class="bu">print</span>(<span class="ss">f"  Caching module '</span><span class="sc">{</span>name<span class="sc">}</span><span class="ss">'..."</span>)</span>
+<span id="cb20-19"><a href="#cb20-19" aria-hidden="true" tabindex="-1"></a>            module.compute_and_cache_states(model, tokenizer)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Let’s define this schema and add some prompts to it.</p>
+<div id="cell-34" class="cell">
+<div class="sourceCode cell-code" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Create a schema</span></span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>schema <span class="op">=</span> SimpleSchema(<span class="st">"qa_schema"</span>)</span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Add a few modules</span></span>
+<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a>schema.add_module(<span class="st">"system"</span>, <span class="st">"You are a helpful AI assistant."</span>)</span>
+<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a>schema.add_module(<span class="st">"python_doc"</span>, <span class="st">"Python is a programming language known for its readability."</span>)</span>
+<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Cache all modules</span></span>
+<span id="cb21-9"><a href="#cb21-9" aria-hidden="true" tabindex="-1"></a>schema.cache_all(model, tokenizer)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Caching states for schema 'qa_schema':
+  Caching module 'system'...
+  Caching module 'python_doc'...</code></pre>
+</div>
+</div>
+<div id="cell-35" class="cell">
+<div class="sourceCode cell-code" id="cb23"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Try using just one module first (using our working generate_with_cached_prompt)</span></span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>output <span class="op">=</span> generate_with_cached_prompt(</span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>    model,</span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a>    tokenizer,</span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a>    schema.modules[<span class="st">"system"</span>],</span>
+<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">"Tell me about coding."</span>,</span>
+<span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a>    max_length<span class="op">=</span><span class="dv">50</span></span>
+<span id="cb23-8"><a href="#cb23-8" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb23-9"><a href="#cb23-9" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">Generated:"</span>, output)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+Generated:  This is your second day and I’m sure you’re going to be amazing. You’re good with math, science, and you have a strong understanding of coding. You are asking the question, “Are you good enough to be an AI assistant?”</code></pre>
+</div>
+</div>
+</section>
+<section id="modules-are-part-of-schemas" class="level3">
+<h3 class="anchored" data-anchor-id="modules-are-part-of-schemas">Modules are part of schemas</h3>
+<p>A module becomes a part of a schema. Indeed, we can inspect the KV states that we were storing for just our module vs for our module now that it’s stored as part of a schema, and see that they are identical.</p>
+<div id="cell-37" class="cell">
+<div class="sourceCode cell-code" id="cb25"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> inspect_cached_states(prompt_module: SimplePromptModule):</span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Print the first few values of the cached K,V states."""</span></span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> prompt_module.cached_kv_states <span class="kw">is</span> <span class="va">None</span>:</span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="st">"No cached states!"</span>)</span>
+<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span></span>
+<span id="cb25-6"><a href="#cb25-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-7"><a href="#cb25-7" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Look at first layer's first few values</span></span>
+<span id="cb25-8"><a href="#cb25-8" aria-hidden="true" tabindex="-1"></a>    k, v <span class="op">=</span> prompt_module.cached_kv_states[<span class="dv">0</span>]  <span class="co"># First layer</span></span>
+<span id="cb25-9"><a href="#cb25-9" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"First 5 values of K: </span><span class="sc">{</span>k[<span class="dv">0</span>, <span class="dv">0</span>, <span class="dv">0</span>, :<span class="dv">5</span>]<span class="sc">}</span><span class="ss">"</span>)  <span class="co"># First batch, head, token, first 5 dims</span></span>
+<span id="cb25-10"><a href="#cb25-10" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"First 5 values of V: </span><span class="sc">{</span>v[<span class="dv">0</span>, <span class="dv">0</span>, <span class="dv">0</span>, :<span class="dv">5</span>]<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb25-11"><a href="#cb25-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-12"><a href="#cb25-12" aria-hidden="true" tabindex="-1"></a><span class="co"># Test prompt module</span></span>
+<span id="cb25-13"><a href="#cb25-13" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Original version:"</span>)</span>
+<span id="cb25-14"><a href="#cb25-14" aria-hidden="true" tabindex="-1"></a>system_prompt <span class="op">=</span> SimplePromptModule(<span class="st">"You are a helpful AI assistant."</span>)</span>
+<span id="cb25-15"><a href="#cb25-15" aria-hidden="true" tabindex="-1"></a>system_prompt.compute_and_cache_states(model, tokenizer)</span>
+<span id="cb25-16"><a href="#cb25-16" aria-hidden="true" tabindex="-1"></a>inspect_cached_states(system_prompt)</span>
+<span id="cb25-17"><a href="#cb25-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-18"><a href="#cb25-18" aria-hidden="true" tabindex="-1"></a><span class="co"># Test schema version</span></span>
+<span id="cb25-19"><a href="#cb25-19" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">Schema version:"</span>)</span>
+<span id="cb25-20"><a href="#cb25-20" aria-hidden="true" tabindex="-1"></a>schema <span class="op">=</span> SimpleSchema(<span class="st">"qa_schema"</span>)</span>
+<span id="cb25-21"><a href="#cb25-21" aria-hidden="true" tabindex="-1"></a>schema.add_module(<span class="st">"system"</span>, <span class="st">"You are a helpful AI assistant."</span>)</span>
+<span id="cb25-22"><a href="#cb25-22" aria-hidden="true" tabindex="-1"></a>schema.cache_all(model, tokenizer)</span>
+<span id="cb25-23"><a href="#cb25-23" aria-hidden="true" tabindex="-1"></a>inspect_cached_states(schema.modules[<span class="st">"system"</span>])</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Original version:
+First 5 values of K: tensor([ 0.0956,  0.1783,  0.0368, -0.2105, -0.2119], device='cuda:0')
+First 5 values of V: tensor([ 0.0026,  0.0136, -0.0450, -0.0029, -0.0004], device='cuda:0')
+
+Schema version:
+Caching states for schema 'qa_schema':
+  Caching module 'system'...
+First 5 values of K: tensor([ 0.0956,  0.1783,  0.0368, -0.2105, -0.2119], device='cuda:0')
+First 5 values of V: tensor([ 0.0026,  0.0136, -0.0450, -0.0029, -0.0004], device='cuda:0')</code></pre>
+</div>
+</div>
+</section>
+</section>
+</section>
+<section id="adding-addtional-functionalities" class="level1">
+<h1>Adding Addtional Functionalities</h1>
+<p>Now that we’ve gotten the basics down, it’s time to add enough complexity to take full advantage of prompt caching.</p>
+<p>Although so far we’ve written a prompt module and wrapped it in a schema, we still have:</p>
+<ul>
+<li>No position management - can’t control where modules go in relation to each other</li>
+<li>No module parameters - text is static</li>
+<li>Can’t combine multiple modules yet</li>
+<li>No validation of module combinations</li>
+</ul>
+<p>Let’s build out a prompt module / schema system that allows this.</p>
+<section id="position-handling" class="level2">
+<h2 class="anchored" data-anchor-id="position-handling">Position Handling</h2>
+<p>We want to combine multiple prompt modules to fully take advantage of prompt caching. In order to do that, we need to manage the relative positions of our modules. And it isn’t just about order - it’s about preserving the exact positions that were used when we cached the attention states. To do so:</p>
+<ul>
+<li>Each module gets assigned a range of position IDs</li>
+<li>These positions determine where modules can go in relation to each other</li>
+<li>When combining modules, their relative positions must be maintained</li>
+<li>We can have gaps between positions - the attention mechanism can handle discontinuous position IDs</li>
+</ul>
+<p>This matters because, in transformer models like Llama:</p>
+<ol type="1">
+<li>Each token’s attention calculation includes positional information</li>
+<li>When we cache K,V states, they include this positional information</li>
+<li>To reuse cached states, we need to use them in positions that match how they were cached</li>
+</ol>
+<p>We’ll create a position class that tracks:</p>
+<ul>
+<li>Where a module starts (start)</li>
+<li>How long it is (length)</li>
+<li>Where it ends (end)</li>
+</ul>
+<p>Then, each module reserves a range of positions.</p>
+<div id="cell-41" class="cell">
+<div class="sourceCode cell-code" id="cb27"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span></span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Position:</span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Tracks the position range for a module."""</span></span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a>    start: <span class="bu">int</span>  <span class="co"># Starting position of the module</span></span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a>    length: <span class="bu">int</span>  <span class="co"># Length of the module in tokens</span></span>
+<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-7"><a href="#cb27-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">@property</span></span>
+<span id="cb27-8"><a href="#cb27-8" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> end(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">int</span>:</span>
+<span id="cb27-9"><a href="#cb27-9" aria-hidden="true" tabindex="-1"></a>        <span class="co">"""End position of the module (exclusive)."""</span></span>
+<span id="cb27-10"><a href="#cb27-10" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">self</span>.start <span class="op">+</span> <span class="va">self</span>.length</span>
+<span id="cb27-11"><a href="#cb27-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-12"><a href="#cb27-12" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> overlaps_with(<span class="va">self</span>, other: <span class="st">'Position'</span>) <span class="op">-&gt;</span> <span class="bu">bool</span>:</span>
+<span id="cb27-13"><a href="#cb27-13" aria-hidden="true" tabindex="-1"></a>        <span class="co">"""Check if this position overlaps with another."""</span></span>
+<span id="cb27-14"><a href="#cb27-14" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="kw">not</span> (<span class="va">self</span>.end <span class="op">&lt;=</span> other.start <span class="kw">or</span> other.end <span class="op">&lt;=</span> <span class="va">self</span>.start)</span>
+<span id="cb27-15"><a href="#cb27-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-16"><a href="#cb27-16" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> validate_module_sequence(positions: List[Position]):</span>
+<span id="cb27-17"><a href="#cb27-17" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""</span></span>
+<span id="cb27-18"><a href="#cb27-18" aria-hidden="true" tabindex="-1"></a><span class="co">    Validate that a sequence of module positions does not overlap.</span></span>
+<span id="cb27-19"><a href="#cb27-19" aria-hidden="true" tabindex="-1"></a><span class="co">    Ensures that precomputed KV states are positionally consistent.</span></span>
+<span id="cb27-20"><a href="#cb27-20" aria-hidden="true" tabindex="-1"></a><span class="co">    """</span></span>
+<span id="cb27-21"><a href="#cb27-21" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(positions)):</span>
+<span id="cb27-22"><a href="#cb27-22" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> j <span class="kw">in</span> <span class="bu">range</span>(i <span class="op">+</span> <span class="dv">1</span>, <span class="bu">len</span>(positions)):</span>
+<span id="cb27-23"><a href="#cb27-23" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> positions[i].overlaps_with(positions[j]):</span>
+<span id="cb27-24"><a href="#cb27-24" aria-hidden="true" tabindex="-1"></a>                <span class="cf">raise</span> <span class="pp">ValueError</span>(</span>
+<span id="cb27-25"><a href="#cb27-25" aria-hidden="true" tabindex="-1"></a>                    <span class="ss">f"Position conflict: </span><span class="sc">{</span>positions[i]<span class="sc">}</span><span class="ss"> overlaps with </span><span class="sc">{</span>positions[j]<span class="sc">}</span><span class="ss">"</span></span>
+<span id="cb27-26"><a href="#cb27-26" aria-hidden="true" tabindex="-1"></a>                )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>We also validate our positions, to make sure that nothing is trying to insert into the same slot:</p>
+<div id="cell-43" class="cell">
+<div class="sourceCode cell-code" id="cb28"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a>system_pos <span class="op">=</span> Position(start<span class="op">=</span><span class="dv">0</span>, length<span class="op">=</span><span class="dv">10</span>)</span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>context_pos <span class="op">=</span> Position(start<span class="op">=</span><span class="dv">20</span>, length<span class="op">=</span><span class="dv">15</span>)  <span class="co"># Note gap between 10-20</span></span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a>user_pos <span class="op">=</span> Position(start<span class="op">=</span><span class="dv">40</span>, length<span class="op">=</span><span class="dv">5</span>)     <span class="co"># Note gap between 35-40</span></span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a><span class="co"># This should work:</span></span>
+<span id="cb28-6"><a href="#cb28-6" aria-hidden="true" tabindex="-1"></a>validate_module_sequence([system_pos, context_pos])</span>
+<span id="cb28-7"><a href="#cb28-7" aria-hidden="true" tabindex="-1"></a>validate_module_sequence([context_pos, user_pos])</span>
+<span id="cb28-8"><a href="#cb28-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-9"><a href="#cb28-9" aria-hidden="true" tabindex="-1"></a><span class="co"># This would raise an error:</span></span>
+<span id="cb28-10"><a href="#cb28-10" aria-hidden="true" tabindex="-1"></a><span class="cf">try</span>:</span>
+<span id="cb28-11"><a href="#cb28-11" aria-hidden="true" tabindex="-1"></a>    conflicting_pos <span class="op">=</span> Position(start<span class="op">=</span><span class="dv">5</span>, length<span class="op">=</span><span class="dv">10</span>)  <span class="co"># Overlaps with system_pos</span></span>
+<span id="cb28-12"><a href="#cb28-12" aria-hidden="true" tabindex="-1"></a>    validate_module_sequence([system_pos, conflicting_pos])</span>
+<span id="cb28-13"><a href="#cb28-13" aria-hidden="true" tabindex="-1"></a><span class="cf">except</span> <span class="pp">ValueError</span> <span class="im">as</span> e:</span>
+<span id="cb28-14"><a href="#cb28-14" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"Caught expected error: </span><span class="sc">{</span>e<span class="sc">}</span><span class="ss">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Caught expected error: Position conflict: Position(start=0, length=10) overlaps with Position(start=5, length=10)</code></pre>
+</div>
+</div>
+<p>You might be asking “Why doesn’t attention care about discontinuous position IDs?”</p>
+<p>When a transformer processes tokens, each token’s position is used to calculate positional embeddings that inform how that token attends to other tokens. In Llama’s case, this uses rotary position embeddings (RoPE). The key insight is: attention calculations only care about relative positions between tokens, not absolute positions. When token A at position 5 attends to token B at position 3, what matters is their relative distance (2 positions), not their absolute positions. This means:</p>
+<ul>
+<li>Sequence [0,1,2,3] and sequence [100,101,102,103] will produce the same attention patterns</li>
+<li>A gap like [0,1,2,10,11,12] doesn’t disrupt attention - tokens still know their relative positions to each other</li>
+<li>The model never assumes positions are continuous - it just uses whatever positions it’s given to calculate relative distances</li>
+</ul>
+<p>Therefore, when we cache KV states from discontinuous positions and combine them, each token’s stored states still contain the correct relative position information they had when they were cached. The attention mechanism can use these just fine, as it only cares about preserving those relative relationships.</p>
+<div id="cell-45" class="cell">
+<div class="sourceCode cell-code" id="cb30"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> combine_states_with_positions(</span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a>    cached_states_list: List[Tuple[List[Tuple[torch.Tensor, torch.Tensor]], Position]]</span>
+<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> List[Tuple[torch.Tensor, torch.Tensor]]:</span>
+<span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""</span></span>
+<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a><span class="co">    Combine KV states from multiple modules, respecting their positions.</span></span>
+<span id="cb30-6"><a href="#cb30-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-7"><a href="#cb30-7" aria-hidden="true" tabindex="-1"></a><span class="co">    Args:</span></span>
+<span id="cb30-8"><a href="#cb30-8" aria-hidden="true" tabindex="-1"></a><span class="co">        cached_states_list: List of (cached_states, position) pairs</span></span>
+<span id="cb30-9"><a href="#cb30-9" aria-hidden="true" tabindex="-1"></a><span class="co">            cached_states is the KV states for one module</span></span>
+<span id="cb30-10"><a href="#cb30-10" aria-hidden="true" tabindex="-1"></a><span class="co">            position is where those states should go</span></span>
+<span id="cb30-11"><a href="#cb30-11" aria-hidden="true" tabindex="-1"></a><span class="co">    """</span></span>
+<span id="cb30-12"><a href="#cb30-12" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Sort by position</span></span>
+<span id="cb30-13"><a href="#cb30-13" aria-hidden="true" tabindex="-1"></a>    cached_states_list <span class="op">=</span> <span class="bu">sorted</span>(cached_states_list, key<span class="op">=</span><span class="kw">lambda</span> x: x[<span class="dv">1</span>].start)</span>
+<span id="cb30-14"><a href="#cb30-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-15"><a href="#cb30-15" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Validate no overlaps</span></span>
+<span id="cb30-16"><a href="#cb30-16" aria-hidden="true" tabindex="-1"></a>    positions <span class="op">=</span> [pos <span class="cf">for</span> _, pos <span class="kw">in</span> cached_states_list]</span>
+<span id="cb30-17"><a href="#cb30-17" aria-hidden="true" tabindex="-1"></a>    validate_module_sequence(positions)</span>
+<span id="cb30-18"><a href="#cb30-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-19"><a href="#cb30-19" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Initialize with first module's states</span></span>
+<span id="cb30-20"><a href="#cb30-20" aria-hidden="true" tabindex="-1"></a>    first_states, _ <span class="op">=</span> cached_states_list[<span class="dv">0</span>]</span>
+<span id="cb30-21"><a href="#cb30-21" aria-hidden="true" tabindex="-1"></a>    combined_states <span class="op">=</span> <span class="bu">list</span>(first_states)</span>
+<span id="cb30-22"><a href="#cb30-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-23"><a href="#cb30-23" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Add remaining modules' states</span></span>
+<span id="cb30-24"><a href="#cb30-24" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> module_states, _ <span class="kw">in</span> cached_states_list[<span class="dv">1</span>:]:</span>
+<span id="cb30-25"><a href="#cb30-25" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> layer_idx <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(combined_states)):</span>
+<span id="cb30-26"><a href="#cb30-26" aria-hidden="true" tabindex="-1"></a>            k_combined, v_combined <span class="op">=</span> combined_states[layer_idx]</span>
+<span id="cb30-27"><a href="#cb30-27" aria-hidden="true" tabindex="-1"></a>            k_module, v_module <span class="op">=</span> module_states[layer_idx]</span>
+<span id="cb30-28"><a href="#cb30-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-29"><a href="#cb30-29" aria-hidden="true" tabindex="-1"></a>            <span class="co"># Concatenate along sequence dimension</span></span>
+<span id="cb30-30"><a href="#cb30-30" aria-hidden="true" tabindex="-1"></a>            combined_states[layer_idx] <span class="op">=</span> (</span>
+<span id="cb30-31"><a href="#cb30-31" aria-hidden="true" tabindex="-1"></a>                torch.cat([k_combined, k_module], dim<span class="op">=</span><span class="dv">2</span>),</span>
+<span id="cb30-32"><a href="#cb30-32" aria-hidden="true" tabindex="-1"></a>                torch.cat([v_combined, v_module], dim<span class="op">=</span><span class="dv">2</span>)</span>
+<span id="cb30-33"><a href="#cb30-33" aria-hidden="true" tabindex="-1"></a>            )</span>
+<span id="cb30-34"><a href="#cb30-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-35"><a href="#cb30-35" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> combined_states</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div id="cell-46" class="cell">
+<div class="sourceCode cell-code" id="cb31"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="co">"""Demonstrate how positions affect state combination."""</span></span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Create dummy states (normally these would be real cached states)</span></span>
+<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a>batch_size, n_heads <span class="op">=</span> <span class="dv">1</span>, <span class="dv">8</span></span>
+<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a>head_dim <span class="op">=</span> <span class="dv">64</span></span>
+<span id="cb31-5"><a href="#cb31-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-6"><a href="#cb31-6" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> make_dummy_states(seq_len: <span class="bu">int</span>) <span class="op">-&gt;</span> List[Tuple[torch.Tensor, torch.Tensor]]:</span>
+<span id="cb31-7"><a href="#cb31-7" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Create dummy KV states for testing."""</span></span>
+<span id="cb31-8"><a href="#cb31-8" aria-hidden="true" tabindex="-1"></a>    states <span class="op">=</span> []</span>
+<span id="cb31-9"><a href="#cb31-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">16</span>):  <span class="co"># 16 layers</span></span>
+<span id="cb31-10"><a href="#cb31-10" aria-hidden="true" tabindex="-1"></a>        k <span class="op">=</span> torch.randn(batch_size, n_heads, seq_len, head_dim)</span>
+<span id="cb31-11"><a href="#cb31-11" aria-hidden="true" tabindex="-1"></a>        v <span class="op">=</span> torch.randn(batch_size, n_heads, seq_len, head_dim)</span>
+<span id="cb31-12"><a href="#cb31-12" aria-hidden="true" tabindex="-1"></a>        states.append((k, v))</span>
+<span id="cb31-13"><a href="#cb31-13" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> states</span>
+<span id="cb31-14"><a href="#cb31-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-15"><a href="#cb31-15" aria-hidden="true" tabindex="-1"></a><span class="co"># Create states for three modules</span></span>
+<span id="cb31-16"><a href="#cb31-16" aria-hidden="true" tabindex="-1"></a>states_1 <span class="op">=</span> make_dummy_states(seq_len<span class="op">=</span><span class="dv">5</span>)  <span class="co"># 5 tokens</span></span>
+<span id="cb31-17"><a href="#cb31-17" aria-hidden="true" tabindex="-1"></a>pos_1 <span class="op">=</span> Position(<span class="dv">0</span>, <span class="dv">5</span>)</span>
+<span id="cb31-18"><a href="#cb31-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-19"><a href="#cb31-19" aria-hidden="true" tabindex="-1"></a>states_2 <span class="op">=</span> make_dummy_states(seq_len<span class="op">=</span><span class="dv">3</span>)  <span class="co"># 3 tokens</span></span>
+<span id="cb31-20"><a href="#cb31-20" aria-hidden="true" tabindex="-1"></a>pos_2 <span class="op">=</span> Position(<span class="dv">10</span>, <span class="dv">3</span>)  <span class="co"># Note gap between pos_1 and pos_2</span></span>
+<span id="cb31-21"><a href="#cb31-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-22"><a href="#cb31-22" aria-hidden="true" tabindex="-1"></a>states_3 <span class="op">=</span> make_dummy_states(seq_len<span class="op">=</span><span class="dv">4</span>)  <span class="co"># 4 tokens</span></span>
+<span id="cb31-23"><a href="#cb31-23" aria-hidden="true" tabindex="-1"></a>pos_3 <span class="op">=</span> Position(<span class="dv">15</span>, <span class="dv">4</span>)</span>
+<span id="cb31-24"><a href="#cb31-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-25"><a href="#cb31-25" aria-hidden="true" tabindex="-1"></a><span class="co"># Combine states</span></span>
+<span id="cb31-26"><a href="#cb31-26" aria-hidden="true" tabindex="-1"></a>combined <span class="op">=</span> combine_states_with_positions([</span>
+<span id="cb31-27"><a href="#cb31-27" aria-hidden="true" tabindex="-1"></a>    (states_1, pos_1),</span>
+<span id="cb31-28"><a href="#cb31-28" aria-hidden="true" tabindex="-1"></a>    (states_2, pos_2),</span>
+<span id="cb31-29"><a href="#cb31-29" aria-hidden="true" tabindex="-1"></a>    (states_3, pos_3)</span>
+<span id="cb31-30"><a href="#cb31-30" aria-hidden="true" tabindex="-1"></a>])</span>
+<span id="cb31-31"><a href="#cb31-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-32"><a href="#cb31-32" aria-hidden="true" tabindex="-1"></a><span class="co"># Check shapes</span></span>
+<span id="cb31-33"><a href="#cb31-33" aria-hidden="true" tabindex="-1"></a>k, v <span class="op">=</span> combined[<span class="dv">0</span>]  <span class="co"># First layer</span></span>
+<span id="cb31-34"><a href="#cb31-34" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Combined K shape: </span><span class="sc">{</span>k<span class="sc">.</span>shape<span class="sc">}</span><span class="ss">"</span>)  <span class="co"># Should show total sequence length</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Combined K shape: torch.Size([1, 8, 12, 64])</code></pre>
+</div>
+</div>
+<p>Note: in the final concatenated sequence, there aren’t actually any gaps. What matters is:</p>
+<ul>
+<li>The KV states themselves (which have sequence lengths 5, 3, and 4)</li>
+<li>The relative positions between tokens within each module (which are preserved no matter what absolute positions we assign)</li>
+</ul>
+<p>When we concatenate the KV states, we just put them next to each other in the order we want. The absolute position numbers (0, 10, 15) vs if we had done for instance (0, 5, 13) don’t affect the final sequence - they’re just a way to:</p>
+<ul>
+<li>Express ordering (what comes first)</li>
+<li>Allow for validation (making sure things don’t overlap)</li>
+</ul>
+<p>So why do we do it this way?</p>
+<ol type="1">
+<li><strong>To keep things more flexible.</strong> Extra position IDs are reserved to accommodate parameters of different lengths. For example, if you have a module that might take a name that could be 1-3 tokens long, you reserve 3 positions even if the current parameter only uses 1.</li>
+<li><strong>To better organize schemas.</strong> Ranges of positions (like 0-99, 100-999) help to organize different types of modules, making it easier to keep similar modules in similar position ranges and allow for future additions of new modules with variable lengths.</li>
+</ol>
+<p>Basically, we want “You are a helpful assistant” to be able to slot into the same spot as “You are a kind, friendly, and sociable chat bot.” even though they have different lengths. This is the essence of the modularity of prompt caching coming into play.</p>
+</section>
+<section id="validating-module-combinations" class="level2">
+<h2 class="anchored" data-anchor-id="validating-module-combinations">Validating Module Combinations</h2>
+<p>The position code that we just wrote includes validation that positions don’t overlap, but we don’t yet have rules about which modules can be combined beyond that. For example, in the paper they describe schemas that might specify:</p>
+<ul>
+<li>Required modules (e.g., must have a system message)</li>
+<li>Order dependencies (e.g., context must come before query)</li>
+<li>Module compatibility (e.g., don’t want both Python and SQL documentation modules together)</li>
+<li>Optional modules</li>
+<li>Module groups where only one can be used</li>
+</ul>
+<p>In general, which of these combination rules is necessary may depend on the prompts being cached. Here, we’ll explore how to implement some of these more commonly encountered scenarios in practice.</p>
+<div id="cell-49" class="cell">
+<div class="sourceCode cell-code" id="cb33"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ModuleType(Enum):</span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Different types of modules that may have different combination rules."""</span></span>
+<span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a>    SYSTEM <span class="op">=</span> <span class="st">"system"</span>       <span class="co"># System messages, instructions</span></span>
+<span id="cb33-4"><a href="#cb33-4" aria-hidden="true" tabindex="-1"></a>    CONTEXT <span class="op">=</span> <span class="st">"context"</span>     <span class="co"># Documents, background info</span></span>
+<span id="cb33-5"><a href="#cb33-5" aria-hidden="true" tabindex="-1"></a>    QUERY <span class="op">=</span> <span class="st">"query"</span>        <span class="co"># User questions/inputs</span></span>
+<span id="cb33-6"><a href="#cb33-6" aria-hidden="true" tabindex="-1"></a>    FORMAT <span class="op">=</span> <span class="st">"format"</span>      <span class="co"># Output format instructions</span></span>
+<span id="cb33-7"><a href="#cb33-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-8"><a href="#cb33-8" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span></span>
+<span id="cb33-9"><a href="#cb33-9" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> CombinationRule:</span>
+<span id="cb33-10"><a href="#cb33-10" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Defines how a module can be combined with others."""</span></span>
+<span id="cb33-11"><a href="#cb33-11" aria-hidden="true" tabindex="-1"></a>    module_name: <span class="bu">str</span></span>
+<span id="cb33-12"><a href="#cb33-12" aria-hidden="true" tabindex="-1"></a>    required: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span>                    <span class="co"># Must this module be included?</span></span>
+<span id="cb33-13"><a href="#cb33-13" aria-hidden="true" tabindex="-1"></a>    must_follow: Optional[Set[<span class="bu">str</span>]] <span class="op">=</span> <span class="va">None</span>    <span class="co"># Modules that must come before this one</span></span>
+<span id="cb33-14"><a href="#cb33-14" aria-hidden="true" tabindex="-1"></a>    cannot_combine: Optional[Set[<span class="bu">str</span>]] <span class="op">=</span> <span class="va">None</span> <span class="co"># Modules this can't be used with</span></span>
+<span id="cb33-15"><a href="#cb33-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-16"><a href="#cb33-16" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> validate_combination(<span class="va">self</span>, module_sequence: List[<span class="bu">str</span>]):</span>
+<span id="cb33-17"><a href="#cb33-17" aria-hidden="true" tabindex="-1"></a>        <span class="co">"""Check if this module's position in the sequence follows rules."""</span></span>
+<span id="cb33-18"><a href="#cb33-18" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="va">self</span>.required <span class="kw">and</span> <span class="va">self</span>.module_name <span class="kw">not</span> <span class="kw">in</span> module_sequence:</span>
+<span id="cb33-19"><a href="#cb33-19" aria-hidden="true" tabindex="-1"></a>            <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="ss">f"Required module </span><span class="sc">{</span><span class="va">self</span><span class="sc">.</span>module_name<span class="sc">}</span><span class="ss"> is missing"</span>)</span>
+<span id="cb33-20"><a href="#cb33-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-21"><a href="#cb33-21" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="va">self</span>.module_name <span class="kw">in</span> module_sequence:</span>
+<span id="cb33-22"><a href="#cb33-22" aria-hidden="true" tabindex="-1"></a>            current_pos <span class="op">=</span> module_sequence.index(<span class="va">self</span>.module_name)</span>
+<span id="cb33-23"><a href="#cb33-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-24"><a href="#cb33-24" aria-hidden="true" tabindex="-1"></a>            <span class="co"># Check ordering rules</span></span>
+<span id="cb33-25"><a href="#cb33-25" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> <span class="va">self</span>.must_follow:</span>
+<span id="cb33-26"><a href="#cb33-26" aria-hidden="true" tabindex="-1"></a>                <span class="cf">for</span> prerequisite <span class="kw">in</span> <span class="va">self</span>.must_follow:</span>
+<span id="cb33-27"><a href="#cb33-27" aria-hidden="true" tabindex="-1"></a>                    <span class="cf">if</span> prerequisite <span class="kw">not</span> <span class="kw">in</span> module_sequence[:current_pos]:</span>
+<span id="cb33-28"><a href="#cb33-28" aria-hidden="true" tabindex="-1"></a>                        <span class="cf">raise</span> <span class="pp">ValueError</span>(</span>
+<span id="cb33-29"><a href="#cb33-29" aria-hidden="true" tabindex="-1"></a>                            <span class="ss">f"Module </span><span class="sc">{</span><span class="va">self</span><span class="sc">.</span>module_name<span class="sc">}</span><span class="ss"> must follow </span><span class="sc">{</span>prerequisite<span class="sc">}</span><span class="ss">"</span></span>
+<span id="cb33-30"><a href="#cb33-30" aria-hidden="true" tabindex="-1"></a>                        )</span>
+<span id="cb33-31"><a href="#cb33-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-32"><a href="#cb33-32" aria-hidden="true" tabindex="-1"></a>            <span class="co"># Check incompatible modules</span></span>
+<span id="cb33-33"><a href="#cb33-33" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> <span class="va">self</span>.cannot_combine:</span>
+<span id="cb33-34"><a href="#cb33-34" aria-hidden="true" tabindex="-1"></a>                <span class="cf">for</span> incompatible <span class="kw">in</span> <span class="va">self</span>.cannot_combine:</span>
+<span id="cb33-35"><a href="#cb33-35" aria-hidden="true" tabindex="-1"></a>                    <span class="cf">if</span> incompatible <span class="kw">in</span> module_sequence:</span>
+<span id="cb33-36"><a href="#cb33-36" aria-hidden="true" tabindex="-1"></a>                        <span class="cf">raise</span> <span class="pp">ValueError</span>(</span>
+<span id="cb33-37"><a href="#cb33-37" aria-hidden="true" tabindex="-1"></a>                            <span class="ss">f"Module </span><span class="sc">{</span><span class="va">self</span><span class="sc">.</span>module_name<span class="sc">}</span><span class="ss"> cannot be combined with </span><span class="sc">{</span>incompatible<span class="sc">}</span><span class="ss">"</span></span>
+<span id="cb33-38"><a href="#cb33-38" aria-hidden="true" tabindex="-1"></a>                        )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div id="cell-50" class="cell">
+<div class="sourceCode cell-code" id="cb34"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Define some rules</span></span>
+<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a>system_rule <span class="op">=</span> CombinationRule(</span>
+<span id="cb34-3"><a href="#cb34-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">"system_message"</span>,</span>
+<span id="cb34-4"><a href="#cb34-4" aria-hidden="true" tabindex="-1"></a>    required<span class="op">=</span><span class="va">True</span>  <span class="co"># Must have system message</span></span>
+<span id="cb34-5"><a href="#cb34-5" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb34-6"><a href="#cb34-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb34-7"><a href="#cb34-7" aria-hidden="true" tabindex="-1"></a>python_doc_rule <span class="op">=</span> CombinationRule(</span>
+<span id="cb34-8"><a href="#cb34-8" aria-hidden="true" tabindex="-1"></a>    <span class="st">"python_doc"</span>,</span>
+<span id="cb34-9"><a href="#cb34-9" aria-hidden="true" tabindex="-1"></a>    must_follow<span class="op">=</span>{<span class="st">"system_message"</span>},  <span class="co"># Must come after system message</span></span>
+<span id="cb34-10"><a href="#cb34-10" aria-hidden="true" tabindex="-1"></a>    cannot_combine<span class="op">=</span>{<span class="st">"sql_doc"</span>}       <span class="co"># Can't use with SQL doc</span></span>
+<span id="cb34-11"><a href="#cb34-11" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb34-12"><a href="#cb34-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb34-13"><a href="#cb34-13" aria-hidden="true" tabindex="-1"></a>query_rule <span class="op">=</span> CombinationRule(</span>
+<span id="cb34-14"><a href="#cb34-14" aria-hidden="true" tabindex="-1"></a>    <span class="st">"user_query"</span>,</span>
+<span id="cb34-15"><a href="#cb34-15" aria-hidden="true" tabindex="-1"></a>    required<span class="op">=</span><span class="va">True</span>,</span>
+<span id="cb34-16"><a href="#cb34-16" aria-hidden="true" tabindex="-1"></a>    must_follow<span class="op">=</span>{<span class="st">"system_message"</span>}  <span class="co"># Must come after system</span></span>
+<span id="cb34-17"><a href="#cb34-17" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb34-18"><a href="#cb34-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb34-19"><a href="#cb34-19" aria-hidden="true" tabindex="-1"></a><span class="co"># Test valid sequence</span></span>
+<span id="cb34-20"><a href="#cb34-20" aria-hidden="true" tabindex="-1"></a>valid_sequence <span class="op">=</span> [<span class="st">"system_message"</span>, <span class="st">"python_doc"</span>, <span class="st">"user_query"</span>]</span>
+<span id="cb34-21"><a href="#cb34-21" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> rule <span class="kw">in</span> [system_rule, python_doc_rule, query_rule]:</span>
+<span id="cb34-22"><a href="#cb34-22" aria-hidden="true" tabindex="-1"></a>    rule.validate_combination(valid_sequence)</span>
+<span id="cb34-23"><a href="#cb34-23" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Valid sequence passed!</span><span class="ch">\n</span><span class="st">"</span>)</span>
+<span id="cb34-24"><a href="#cb34-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb34-25"><a href="#cb34-25" aria-hidden="true" tabindex="-1"></a><span class="co"># Test invalid sequence (missing required system message)</span></span>
+<span id="cb34-26"><a href="#cb34-26" aria-hidden="true" tabindex="-1"></a><span class="cf">try</span>:</span>
+<span id="cb34-27"><a href="#cb34-27" aria-hidden="true" tabindex="-1"></a>    invalid_sequence <span class="op">=</span> [<span class="st">"python_doc"</span>, <span class="st">"user_query"</span>]</span>
+<span id="cb34-28"><a href="#cb34-28" aria-hidden="true" tabindex="-1"></a>    system_rule.validate_combination(invalid_sequence)</span>
+<span id="cb34-29"><a href="#cb34-29" aria-hidden="true" tabindex="-1"></a><span class="cf">except</span> <span class="pp">ValueError</span> <span class="im">as</span> e:</span>
+<span id="cb34-30"><a href="#cb34-30" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"Caught expected error: </span><span class="sc">{</span>e<span class="sc">}</span><span class="ss">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Valid sequence passed!
+
+Caught expected error: Required module system_message is missing</code></pre>
+</div>
+</div>
+</section>
+<section id="fillable-parameters" class="level2">
+<h2 class="anchored" data-anchor-id="fillable-parameters">Fillable Parameters</h2>
+<p>Often times, most of a prompt wants to remain the same, with a few fillable parameters being swapped out.</p>
+<p>For example, if you wanted to build modular prompts to help write code, you might want the specific programming lagnuage to be swappable in the system prompt (“Explain this python code” / “Explain this C code”.</p>
+<p>In these instances, we want to add parameters to our prompt modules, which are spaces left empty and able to accommodate an array of potential inputs in future.</p>
+<div id="cell-52" class="cell">
+<div class="sourceCode cell-code" id="cb36"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span></span>
+<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Parameter:</span>
+<span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""A parameter in a module that gets filled in at runtime."""</span></span>
+<span id="cb36-4"><a href="#cb36-4" aria-hidden="true" tabindex="-1"></a>    name: <span class="bu">str</span></span>
+<span id="cb36-5"><a href="#cb36-5" aria-hidden="true" tabindex="-1"></a>    max_length: <span class="bu">int</span>  <span class="co"># Maximum number of tokens this parameter can use</span></span>
+<span id="cb36-6"><a href="#cb36-6" aria-hidden="true" tabindex="-1"></a>    default: Optional[<span class="bu">str</span>] <span class="op">=</span> <span class="va">None</span></span>
+<span id="cb36-7"><a href="#cb36-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-8"><a href="#cb36-8" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ParameterizedModule:</span>
+<span id="cb36-9"><a href="#cb36-9" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""A module that can have parameters."""</span></span>
+<span id="cb36-10"><a href="#cb36-10" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, name: <span class="bu">str</span>, template: <span class="bu">str</span>):</span>
+<span id="cb36-11"><a href="#cb36-11" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.name <span class="op">=</span> name</span>
+<span id="cb36-12"><a href="#cb36-12" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.template <span class="op">=</span> template</span>
+<span id="cb36-13"><a href="#cb36-13" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.parameters: Dict[<span class="bu">str</span>, Parameter] <span class="op">=</span> {}</span>
+<span id="cb36-14"><a href="#cb36-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-15"><a href="#cb36-15" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Find parameters in template</span></span>
+<span id="cb36-16"><a href="#cb36-16" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Format: {param_name:max_length}</span></span>
+<span id="cb36-17"><a href="#cb36-17" aria-hidden="true" tabindex="-1"></a>        param_pattern <span class="op">=</span> <span class="vs">r'\{(\w+):(\d+)\}'</span></span>
+<span id="cb36-18"><a href="#cb36-18" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> match <span class="kw">in</span> re.finditer(param_pattern, template):</span>
+<span id="cb36-19"><a href="#cb36-19" aria-hidden="true" tabindex="-1"></a>            param_name, max_length <span class="op">=</span> match.groups()</span>
+<span id="cb36-20"><a href="#cb36-20" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>.parameters[param_name] <span class="op">=</span> Parameter(</span>
+<span id="cb36-21"><a href="#cb36-21" aria-hidden="true" tabindex="-1"></a>                name<span class="op">=</span>param_name,</span>
+<span id="cb36-22"><a href="#cb36-22" aria-hidden="true" tabindex="-1"></a>                max_length<span class="op">=</span><span class="bu">int</span>(max_length)</span>
+<span id="cb36-23"><a href="#cb36-23" aria-hidden="true" tabindex="-1"></a>            )</span>
+<span id="cb36-24"><a href="#cb36-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-25"><a href="#cb36-25" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> fill_parameters(<span class="va">self</span>, tokenizer, <span class="op">**</span>kwargs) <span class="op">-&gt;</span> <span class="bu">str</span>:</span>
+<span id="cb36-26"><a href="#cb36-26" aria-hidden="true" tabindex="-1"></a>        <span class="co">"""Fill in parameters and validate their lengths."""</span></span>
+<span id="cb36-27"><a href="#cb36-27" aria-hidden="true" tabindex="-1"></a>        result <span class="op">=</span> <span class="va">self</span>.template</span>
+<span id="cb36-28"><a href="#cb36-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-29"><a href="#cb36-29" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> param_name, value <span class="kw">in</span> kwargs.items():</span>
+<span id="cb36-30"><a href="#cb36-30" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> param_name <span class="kw">not</span> <span class="kw">in</span> <span class="va">self</span>.parameters:</span>
+<span id="cb36-31"><a href="#cb36-31" aria-hidden="true" tabindex="-1"></a>                <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="ss">f"Unknown parameter: </span><span class="sc">{</span>param_name<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb36-32"><a href="#cb36-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-33"><a href="#cb36-33" aria-hidden="true" tabindex="-1"></a>            <span class="co"># Check length</span></span>
+<span id="cb36-34"><a href="#cb36-34" aria-hidden="true" tabindex="-1"></a>            param <span class="op">=</span> <span class="va">self</span>.parameters[param_name]</span>
+<span id="cb36-35"><a href="#cb36-35" aria-hidden="true" tabindex="-1"></a>            tokens <span class="op">=</span> tokenizer(value)[<span class="st">'input_ids'</span>]</span>
+<span id="cb36-36"><a href="#cb36-36" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> <span class="bu">len</span>(tokens) <span class="op">&gt;</span> param.max_length:</span>
+<span id="cb36-37"><a href="#cb36-37" aria-hidden="true" tabindex="-1"></a>                <span class="cf">raise</span> <span class="pp">ValueError</span>(</span>
+<span id="cb36-38"><a href="#cb36-38" aria-hidden="true" tabindex="-1"></a>                    <span class="ss">f"Value for </span><span class="sc">{</span>param_name<span class="sc">}</span><span class="ss"> uses </span><span class="sc">{</span><span class="bu">len</span>(tokens)<span class="sc">}</span><span class="ss"> tokens, "</span></span>
+<span id="cb36-39"><a href="#cb36-39" aria-hidden="true" tabindex="-1"></a>                    <span class="ss">f"max allowed is </span><span class="sc">{</span>param<span class="sc">.</span>max_length<span class="sc">}</span><span class="ss">"</span></span>
+<span id="cb36-40"><a href="#cb36-40" aria-hidden="true" tabindex="-1"></a>                )</span>
+<span id="cb36-41"><a href="#cb36-41" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-42"><a href="#cb36-42" aria-hidden="true" tabindex="-1"></a>            <span class="co"># Replace in template</span></span>
+<span id="cb36-43"><a href="#cb36-43" aria-hidden="true" tabindex="-1"></a>            result <span class="op">=</span> result.replace(<span class="ss">f"</span><span class="ch">{{</span><span class="sc">{</span>param_name<span class="sc">}</span><span class="ss">:</span><span class="sc">{</span>param<span class="sc">.</span>max_length<span class="sc">}</span><span class="ch">}}</span><span class="ss">"</span>, value)</span>
+<span id="cb36-44"><a href="#cb36-44" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-45"><a href="#cb36-45" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Fill any remaining parameters with defaults</span></span>
+<span id="cb36-46"><a href="#cb36-46" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> name, param <span class="kw">in</span> <span class="va">self</span>.parameters.items():</span>
+<span id="cb36-47"><a href="#cb36-47" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> name <span class="kw">not</span> <span class="kw">in</span> kwargs <span class="kw">and</span> param.default <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span>:</span>
+<span id="cb36-48"><a href="#cb36-48" aria-hidden="true" tabindex="-1"></a>                result <span class="op">=</span> result.replace(</span>
+<span id="cb36-49"><a href="#cb36-49" aria-hidden="true" tabindex="-1"></a>                    <span class="ss">f"</span><span class="ch">{{</span><span class="sc">{</span>name<span class="sc">}</span><span class="ss">:</span><span class="sc">{</span>param<span class="sc">.</span>max_length<span class="sc">}</span><span class="ch">}}</span><span class="ss">"</span>,</span>
+<span id="cb36-50"><a href="#cb36-50" aria-hidden="true" tabindex="-1"></a>                    param.default</span>
+<span id="cb36-51"><a href="#cb36-51" aria-hidden="true" tabindex="-1"></a>                )</span>
+<span id="cb36-52"><a href="#cb36-52" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-53"><a href="#cb36-53" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> result</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Now, let’s experiment with building a parametrized module.</p>
+<p>Feel free to experiment with this cell: see what happens if you change the number of tokens allowed for the different parameters, or what happens if you try different (like too long, for instance) parameters when filling them.</p>
+<div id="cell-54" class="cell">
+<div class="sourceCode cell-code" id="cb37"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Create a parameterized module</span></span>
+<span id="cb37-2"><a href="#cb37-2" aria-hidden="true" tabindex="-1"></a>code_explain <span class="op">=</span> ParameterizedModule(</span>
+<span id="cb37-3"><a href="#cb37-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">"explain_code"</span>,</span>
+<span id="cb37-4"><a href="#cb37-4" aria-hidden="true" tabindex="-1"></a>    template<span class="op">=</span><span class="st">"Explain this </span><span class="sc">{language:5}</span><span class="st"> code:</span><span class="ch">\n</span><span class="sc">{code:50}</span><span class="ch">\n</span><span class="st">Focus on </span><span class="sc">{aspect:3}</span><span class="st">"</span></span>
+<span id="cb37-5"><a href="#cb37-5" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb37-6"><a href="#cb37-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb37-7"><a href="#cb37-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Fill parameters</span></span>
+<span id="cb37-8"><a href="#cb37-8" aria-hidden="true" tabindex="-1"></a>filled <span class="op">=</span> code_explain.fill_parameters(</span>
+<span id="cb37-9"><a href="#cb37-9" aria-hidden="true" tabindex="-1"></a>    tokenizer,</span>
+<span id="cb37-10"><a href="#cb37-10" aria-hidden="true" tabindex="-1"></a>    language<span class="op">=</span><span class="st">"Python"</span>,</span>
+<span id="cb37-11"><a href="#cb37-11" aria-hidden="true" tabindex="-1"></a>    code<span class="op">=</span><span class="st">"def factorial(n): return 1 if n &lt;= 1 else n * factorial(n-1)"</span>,</span>
+<span id="cb37-12"><a href="#cb37-12" aria-hidden="true" tabindex="-1"></a>    aspect<span class="op">=</span><span class="st">"recursion"</span></span>
+<span id="cb37-13"><a href="#cb37-13" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb37-14"><a href="#cb37-14" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Filled template:"</span>, filled)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Filled template: Explain this Python code:
+def factorial(n): return 1 if n &lt;= 1 else n * factorial(n-1)
+Focus on recursion</code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="a-full-implementation" class="level1">
+<h1>A Full Implementation</h1>
+<p>Now, we’re ready to put all that we’ve disussed so far together into a complete implementation of prompt caching.</p>
+<section id="promptmodule-class" class="level3">
+<h3 class="anchored" data-anchor-id="promptmodule-class">PromptModule Class</h3>
+<p>This class represents reusable segments of a prompt with parameters that can be dynamically filled in at runtime. It allows: - Parsing parameters from templates (e.g., <code>{param_name:max_length}</code>). - Validating and substituting parameter values. - Precomputing and caching key-value (KV) attention states for efficiency.</p>
+<p>This will be used to define modular prompt components that can be cached and reused during generation.</p>
+<div id="cell-57" class="cell">
+<div class="sourceCode cell-code" id="cb39"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> PromptModule:</span>
+<span id="cb39-2"><a href="#cb39-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""</span></span>
+<span id="cb39-3"><a href="#cb39-3" aria-hidden="true" tabindex="-1"></a><span class="co">    Represents a reusable segment of a prompt (a prompt module).</span></span>
+<span id="cb39-4"><a href="#cb39-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-5"><a href="#cb39-5" aria-hidden="true" tabindex="-1"></a><span class="co">    - Each module has a name, a text template, and a position in the overall schema.</span></span>
+<span id="cb39-6"><a href="#cb39-6" aria-hidden="true" tabindex="-1"></a><span class="co">    - Parameters in the module template allow dynamic customization at runtime.</span></span>
+<span id="cb39-7"><a href="#cb39-7" aria-hidden="true" tabindex="-1"></a><span class="co">    - Precomputed KV states for the module can be cached for reuse, improving efficiency.</span></span>
+<span id="cb39-8"><a href="#cb39-8" aria-hidden="true" tabindex="-1"></a><span class="co">    """</span></span>
+<span id="cb39-9"><a href="#cb39-9" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, name: <span class="bu">str</span>, template: <span class="bu">str</span>, position: Position):</span>
+<span id="cb39-10"><a href="#cb39-10" aria-hidden="true" tabindex="-1"></a>        <span class="co">"""</span></span>
+<span id="cb39-11"><a href="#cb39-11" aria-hidden="true" tabindex="-1"></a><span class="co">        Initialize the module with a name, template, and position.</span></span>
+<span id="cb39-12"><a href="#cb39-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-13"><a href="#cb39-13" aria-hidden="true" tabindex="-1"></a><span class="co">        Args:</span></span>
+<span id="cb39-14"><a href="#cb39-14" aria-hidden="true" tabindex="-1"></a><span class="co">            name (str): Unique identifier for the module.</span></span>
+<span id="cb39-15"><a href="#cb39-15" aria-hidden="true" tabindex="-1"></a><span class="co">            template (str): Text template for the module. Parameters are written as {param_name:max_length}.</span></span>
+<span id="cb39-16"><a href="#cb39-16" aria-hidden="true" tabindex="-1"></a><span class="co">            position (Position): Specifies the starting position and length of the module.</span></span>
+<span id="cb39-17"><a href="#cb39-17" aria-hidden="true" tabindex="-1"></a><span class="co">        """</span></span>
+<span id="cb39-18"><a href="#cb39-18" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.name <span class="op">=</span> name</span>
+<span id="cb39-19"><a href="#cb39-19" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.template <span class="op">=</span> template</span>
+<span id="cb39-20"><a href="#cb39-20" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.position <span class="op">=</span> position</span>
+<span id="cb39-21"><a href="#cb39-21" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.parameters: Dict[<span class="bu">str</span>, Parameter] <span class="op">=</span> {}  <span class="co"># Parameter details (name, max length, default value)</span></span>
+<span id="cb39-22"><a href="#cb39-22" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.cached_kv_states <span class="op">=</span> <span class="va">None</span>  <span class="co"># Stores precomputed KV states (key-value attention states)</span></span>
+<span id="cb39-23"><a href="#cb39-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-24"><a href="#cb39-24" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Find parameters in template</span></span>
+<span id="cb39-25"><a href="#cb39-25" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Format: {param_name:max_length}</span></span>
+<span id="cb39-26"><a href="#cb39-26" aria-hidden="true" tabindex="-1"></a>        param_pattern <span class="op">=</span> <span class="vs">r'\{(\w+):(\d+)\}'</span></span>
+<span id="cb39-27"><a href="#cb39-27" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> match <span class="kw">in</span> re.finditer(param_pattern, template):</span>
+<span id="cb39-28"><a href="#cb39-28" aria-hidden="true" tabindex="-1"></a>            param_name, max_length <span class="op">=</span> match.groups()</span>
+<span id="cb39-29"><a href="#cb39-29" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>.parameters[param_name] <span class="op">=</span> Parameter(</span>
+<span id="cb39-30"><a href="#cb39-30" aria-hidden="true" tabindex="-1"></a>                name<span class="op">=</span>param_name,</span>
+<span id="cb39-31"><a href="#cb39-31" aria-hidden="true" tabindex="-1"></a>                max_length<span class="op">=</span><span class="bu">int</span>(max_length)</span>
+<span id="cb39-32"><a href="#cb39-32" aria-hidden="true" tabindex="-1"></a>            )</span>
+<span id="cb39-33"><a href="#cb39-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-34"><a href="#cb39-34" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> fill_parameters(<span class="va">self</span>, tokenizer, <span class="op">**</span>kwargs) <span class="op">-&gt;</span> <span class="bu">str</span>:</span>
+<span id="cb39-35"><a href="#cb39-35" aria-hidden="true" tabindex="-1"></a>        <span class="co">"""</span></span>
+<span id="cb39-36"><a href="#cb39-36" aria-hidden="true" tabindex="-1"></a><span class="co">        Fill the template parameters with user-provided values.</span></span>
+<span id="cb39-37"><a href="#cb39-37" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-38"><a href="#cb39-38" aria-hidden="true" tabindex="-1"></a><span class="co">        - Validates parameter lengths against the specified maximum token lengths.</span></span>
+<span id="cb39-39"><a href="#cb39-39" aria-hidden="true" tabindex="-1"></a><span class="co">        - Fills remaining parameters with defaults if available.</span></span>
+<span id="cb39-40"><a href="#cb39-40" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-41"><a href="#cb39-41" aria-hidden="true" tabindex="-1"></a><span class="co">        Args:</span></span>
+<span id="cb39-42"><a href="#cb39-42" aria-hidden="true" tabindex="-1"></a><span class="co">            tokenizer: Tokenizer for the model to compute token lengths.</span></span>
+<span id="cb39-43"><a href="#cb39-43" aria-hidden="true" tabindex="-1"></a><span class="co">            kwargs: Parameter values to replace in the template.</span></span>
+<span id="cb39-44"><a href="#cb39-44" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-45"><a href="#cb39-45" aria-hidden="true" tabindex="-1"></a><span class="co">        Returns:</span></span>
+<span id="cb39-46"><a href="#cb39-46" aria-hidden="true" tabindex="-1"></a><span class="co">            str: The filled-in template.</span></span>
+<span id="cb39-47"><a href="#cb39-47" aria-hidden="true" tabindex="-1"></a><span class="co">        """</span></span>
+<span id="cb39-48"><a href="#cb39-48" aria-hidden="true" tabindex="-1"></a>        result <span class="op">=</span> <span class="va">self</span>.template</span>
+<span id="cb39-49"><a href="#cb39-49" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-50"><a href="#cb39-50" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> param_name, value <span class="kw">in</span> kwargs.items():</span>
+<span id="cb39-51"><a href="#cb39-51" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> param_name <span class="kw">not</span> <span class="kw">in</span> <span class="va">self</span>.parameters:</span>
+<span id="cb39-52"><a href="#cb39-52" aria-hidden="true" tabindex="-1"></a>                <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="ss">f"Unknown parameter: </span><span class="sc">{</span>param_name<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb39-53"><a href="#cb39-53" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-54"><a href="#cb39-54" aria-hidden="true" tabindex="-1"></a>            <span class="co"># Check length</span></span>
+<span id="cb39-55"><a href="#cb39-55" aria-hidden="true" tabindex="-1"></a>            param <span class="op">=</span> <span class="va">self</span>.parameters[param_name]</span>
+<span id="cb39-56"><a href="#cb39-56" aria-hidden="true" tabindex="-1"></a>            tokens <span class="op">=</span> tokenizer(value)[<span class="st">'input_ids'</span>]</span>
+<span id="cb39-57"><a href="#cb39-57" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> <span class="bu">len</span>(tokens) <span class="op">&gt;</span> param.max_length:</span>
+<span id="cb39-58"><a href="#cb39-58" aria-hidden="true" tabindex="-1"></a>                <span class="cf">raise</span> <span class="pp">ValueError</span>(</span>
+<span id="cb39-59"><a href="#cb39-59" aria-hidden="true" tabindex="-1"></a>                    <span class="ss">f"Value for </span><span class="sc">{</span>param_name<span class="sc">}</span><span class="ss"> uses </span><span class="sc">{</span><span class="bu">len</span>(tokens)<span class="sc">}</span><span class="ss"> tokens, "</span></span>
+<span id="cb39-60"><a href="#cb39-60" aria-hidden="true" tabindex="-1"></a>                    <span class="ss">f"max allowed is </span><span class="sc">{</span>param<span class="sc">.</span>max_length<span class="sc">}</span><span class="ss">"</span></span>
+<span id="cb39-61"><a href="#cb39-61" aria-hidden="true" tabindex="-1"></a>                )</span>
+<span id="cb39-62"><a href="#cb39-62" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-63"><a href="#cb39-63" aria-hidden="true" tabindex="-1"></a>            <span class="co"># Replace in template</span></span>
+<span id="cb39-64"><a href="#cb39-64" aria-hidden="true" tabindex="-1"></a>            result <span class="op">=</span> result.replace(<span class="ss">f"</span><span class="ch">{{</span><span class="sc">{</span>param_name<span class="sc">}</span><span class="ss">:</span><span class="sc">{</span>param<span class="sc">.</span>max_length<span class="sc">}</span><span class="ch">}}</span><span class="ss">"</span>, value)</span>
+<span id="cb39-65"><a href="#cb39-65" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-66"><a href="#cb39-66" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Fill any remaining parameters with defaults</span></span>
+<span id="cb39-67"><a href="#cb39-67" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> name, param <span class="kw">in</span> <span class="va">self</span>.parameters.items():</span>
+<span id="cb39-68"><a href="#cb39-68" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> name <span class="kw">not</span> <span class="kw">in</span> kwargs <span class="kw">and</span> param.default <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span>:</span>
+<span id="cb39-69"><a href="#cb39-69" aria-hidden="true" tabindex="-1"></a>                result <span class="op">=</span> result.replace(</span>
+<span id="cb39-70"><a href="#cb39-70" aria-hidden="true" tabindex="-1"></a>                    <span class="ss">f"</span><span class="ch">{{</span><span class="sc">{</span>name<span class="sc">}</span><span class="ss">:</span><span class="sc">{</span>param<span class="sc">.</span>max_length<span class="sc">}</span><span class="ch">}}</span><span class="ss">"</span>,</span>
+<span id="cb39-71"><a href="#cb39-71" aria-hidden="true" tabindex="-1"></a>                    param.default</span>
+<span id="cb39-72"><a href="#cb39-72" aria-hidden="true" tabindex="-1"></a>                )</span>
+<span id="cb39-73"><a href="#cb39-73" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-74"><a href="#cb39-74" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> result</span>
+<span id="cb39-75"><a href="#cb39-75" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-76"><a href="#cb39-76" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> compute_and_cache_states(<span class="va">self</span>, model, tokenizer, <span class="op">**</span>param_values):</span>
+<span id="cb39-77"><a href="#cb39-77" aria-hidden="true" tabindex="-1"></a>        <span class="co">"""</span></span>
+<span id="cb39-78"><a href="#cb39-78" aria-hidden="true" tabindex="-1"></a><span class="co">        Compute and cache the KV attention states for the module.</span></span>
+<span id="cb39-79"><a href="#cb39-79" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-80"><a href="#cb39-80" aria-hidden="true" tabindex="-1"></a><span class="co">        - Fills in template parameters to create the final text.</span></span>
+<span id="cb39-81"><a href="#cb39-81" aria-hidden="true" tabindex="-1"></a><span class="co">        - Tokenizes the text and computes KV states using the model.</span></span>
+<span id="cb39-82"><a href="#cb39-82" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-83"><a href="#cb39-83" aria-hidden="true" tabindex="-1"></a><span class="co">        Args:</span></span>
+<span id="cb39-84"><a href="#cb39-84" aria-hidden="true" tabindex="-1"></a><span class="co">            model: The language model used for computing KV states.</span></span>
+<span id="cb39-85"><a href="#cb39-85" aria-hidden="true" tabindex="-1"></a><span class="co">            tokenizer: Tokenizer for preparing input to the model.</span></span>
+<span id="cb39-86"><a href="#cb39-86" aria-hidden="true" tabindex="-1"></a><span class="co">            param_values: Values for the template parameters.</span></span>
+<span id="cb39-87"><a href="#cb39-87" aria-hidden="true" tabindex="-1"></a><span class="co">        """</span></span>
+<span id="cb39-88"><a href="#cb39-88" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Fill in template parameters</span></span>
+<span id="cb39-89"><a href="#cb39-89" aria-hidden="true" tabindex="-1"></a>        filled_text <span class="op">=</span> <span class="va">self</span>.fill_parameters(tokenizer, <span class="op">**</span>param_values)</span>
+<span id="cb39-90"><a href="#cb39-90" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-91"><a href="#cb39-91" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Tokenize the filled template</span></span>
+<span id="cb39-92"><a href="#cb39-92" aria-hidden="true" tabindex="-1"></a>        tokens <span class="op">=</span> tokenizer(filled_text, return_tensors<span class="op">=</span><span class="st">'pt'</span>).to(model.device)</span>
+<span id="cb39-93"><a href="#cb39-93" aria-hidden="true" tabindex="-1"></a>        input_ids <span class="op">=</span> tokens.input_ids</span>
+<span id="cb39-94"><a href="#cb39-94" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-95"><a href="#cb39-95" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Compute KV states using the model</span></span>
+<span id="cb39-96"><a href="#cb39-96" aria-hidden="true" tabindex="-1"></a>        <span class="cf">with</span> torch.no_grad():</span>
+<span id="cb39-97"><a href="#cb39-97" aria-hidden="true" tabindex="-1"></a>            outputs <span class="op">=</span> model(</span>
+<span id="cb39-98"><a href="#cb39-98" aria-hidden="true" tabindex="-1"></a>                input_ids,</span>
+<span id="cb39-99"><a href="#cb39-99" aria-hidden="true" tabindex="-1"></a>                use_cache<span class="op">=</span><span class="va">True</span>,  <span class="co"># Ensures KV states are returned</span></span>
+<span id="cb39-100"><a href="#cb39-100" aria-hidden="true" tabindex="-1"></a>                return_dict<span class="op">=</span><span class="va">True</span></span>
+<span id="cb39-101"><a href="#cb39-101" aria-hidden="true" tabindex="-1"></a>            )</span>
+<span id="cb39-102"><a href="#cb39-102" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-103"><a href="#cb39-103" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Store the KV states in cache</span></span>
+<span id="cb39-104"><a href="#cb39-104" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.cached_kv_states <span class="op">=</span> outputs.past_key_values</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="schema-class" class="level3">
+<h3 class="anchored" data-anchor-id="schema-class">Schema Class</h3>
+<p>This class organizes and manages a collection of <code>PromptModule</code> objects and their relationships. Key features include: - Storing prompt modules and defining their positional constraints. - Adding and configuring modules with rules for ordering and combination. - Caching precomputed key-value (KV) attention states for all modules using stored parameters. - Validating module sequences to ensure compliance with rules and positional constraints.</p>
+<p>The <code>Schema</code> class serves as the central structure for managing modular prompts and ensuring efficient generation workflows.</p>
+<div id="cell-59" class="cell">
+<div class="sourceCode cell-code" id="cb40"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Schema:</span>
+<span id="cb40-2"><a href="#cb40-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""</span></span>
+<span id="cb40-3"><a href="#cb40-3" aria-hidden="true" tabindex="-1"></a><span class="co">    Represents a collection of prompt modules and their relationships.</span></span>
+<span id="cb40-4"><a href="#cb40-4" aria-hidden="true" tabindex="-1"></a><span class="co">    Manages KV state caching and enforces module combination rules.</span></span>
+<span id="cb40-5"><a href="#cb40-5" aria-hidden="true" tabindex="-1"></a><span class="co">    """</span></span>
+<span id="cb40-6"><a href="#cb40-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, name: <span class="bu">str</span>):</span>
+<span id="cb40-7"><a href="#cb40-7" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.name <span class="op">=</span> name</span>
+<span id="cb40-8"><a href="#cb40-8" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.modules: Dict[<span class="bu">str</span>, PromptModule] <span class="op">=</span> {}</span>
+<span id="cb40-9"><a href="#cb40-9" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.rules: Dict[<span class="bu">str</span>, CombinationRule] <span class="op">=</span> {}</span>
+<span id="cb40-10"><a href="#cb40-10" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.next_position <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb40-11"><a href="#cb40-11" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.module_params: Dict[<span class="bu">str</span>, Dict] <span class="op">=</span> {}  <span class="co"># Store module parameters here</span></span>
+<span id="cb40-12"><a href="#cb40-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb40-13"><a href="#cb40-13" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> set_module_params(<span class="va">self</span>, module_params: Dict[<span class="bu">str</span>, Dict]):</span>
+<span id="cb40-14"><a href="#cb40-14" aria-hidden="true" tabindex="-1"></a>        <span class="co">"""</span></span>
+<span id="cb40-15"><a href="#cb40-15" aria-hidden="true" tabindex="-1"></a><span class="co">        Merge new module parameters with existing ones.</span></span>
+<span id="cb40-16"><a href="#cb40-16" aria-hidden="true" tabindex="-1"></a><span class="co">        Args:</span></span>
+<span id="cb40-17"><a href="#cb40-17" aria-hidden="true" tabindex="-1"></a><span class="co">            module_params (Dict[str, Dict]): Parameter values for each module.</span></span>
+<span id="cb40-18"><a href="#cb40-18" aria-hidden="true" tabindex="-1"></a><span class="co">        """</span></span>
+<span id="cb40-19"><a href="#cb40-19" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> module_name, params <span class="kw">in</span> module_params.items():</span>
+<span id="cb40-20"><a href="#cb40-20" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> module_name <span class="kw">in</span> <span class="va">self</span>.module_params:</span>
+<span id="cb40-21"><a href="#cb40-21" aria-hidden="true" tabindex="-1"></a>                <span class="co"># Update existing parameters</span></span>
+<span id="cb40-22"><a href="#cb40-22" aria-hidden="true" tabindex="-1"></a>                <span class="va">self</span>.module_params[module_name].update(params)</span>
+<span id="cb40-23"><a href="#cb40-23" aria-hidden="true" tabindex="-1"></a>            <span class="cf">else</span>:</span>
+<span id="cb40-24"><a href="#cb40-24" aria-hidden="true" tabindex="-1"></a>                <span class="co"># Add new module parameters</span></span>
+<span id="cb40-25"><a href="#cb40-25" aria-hidden="true" tabindex="-1"></a>                <span class="va">self</span>.module_params[module_name] <span class="op">=</span> params</span>
+<span id="cb40-26"><a href="#cb40-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb40-27"><a href="#cb40-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb40-28"><a href="#cb40-28" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> add_module(<span class="va">self</span>, name: <span class="bu">str</span>, template: <span class="bu">str</span>, length_reserve: <span class="bu">int</span>, rule<span class="op">=</span><span class="va">None</span>):</span>
+<span id="cb40-29"><a href="#cb40-29" aria-hidden="true" tabindex="-1"></a>        <span class="co">"""</span></span>
+<span id="cb40-30"><a href="#cb40-30" aria-hidden="true" tabindex="-1"></a><span class="co">        Add a module to the schema with its position and optional rules.</span></span>
+<span id="cb40-31"><a href="#cb40-31" aria-hidden="true" tabindex="-1"></a><span class="co">        """</span></span>
+<span id="cb40-32"><a href="#cb40-32" aria-hidden="true" tabindex="-1"></a>        position <span class="op">=</span> Position(<span class="va">self</span>.next_position, length_reserve)</span>
+<span id="cb40-33"><a href="#cb40-33" aria-hidden="true" tabindex="-1"></a>        module <span class="op">=</span> PromptModule(name, template, position)</span>
+<span id="cb40-34"><a href="#cb40-34" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.modules[name] <span class="op">=</span> module</span>
+<span id="cb40-35"><a href="#cb40-35" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb40-36"><a href="#cb40-36" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> rule:</span>
+<span id="cb40-37"><a href="#cb40-37" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>.rules[name] <span class="op">=</span> rule</span>
+<span id="cb40-38"><a href="#cb40-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb40-39"><a href="#cb40-39" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.next_position <span class="op">+=</span> length_reserve</span>
+<span id="cb40-40"><a href="#cb40-40" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> module</span>
+<span id="cb40-41"><a href="#cb40-41" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb40-42"><a href="#cb40-42" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> cache_all(<span class="va">self</span>, model, tokenizer):</span>
+<span id="cb40-43"><a href="#cb40-43" aria-hidden="true" tabindex="-1"></a>        <span class="co">"""</span></span>
+<span id="cb40-44"><a href="#cb40-44" aria-hidden="true" tabindex="-1"></a><span class="co">        Precompute KV states for all modules using stored module_params.</span></span>
+<span id="cb40-45"><a href="#cb40-45" aria-hidden="true" tabindex="-1"></a><span class="co">        """</span></span>
+<span id="cb40-46"><a href="#cb40-46" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> name, module <span class="kw">in</span> <span class="va">self</span>.modules.items():</span>
+<span id="cb40-47"><a href="#cb40-47" aria-hidden="true" tabindex="-1"></a>            <span class="bu">print</span>(<span class="ss">f"Caching module '</span><span class="sc">{</span>name<span class="sc">}</span><span class="ss">'..."</span>)</span>
+<span id="cb40-48"><a href="#cb40-48" aria-hidden="true" tabindex="-1"></a>            param_values <span class="op">=</span> <span class="va">self</span>.module_params.get(name, {})</span>
+<span id="cb40-49"><a href="#cb40-49" aria-hidden="true" tabindex="-1"></a>            module.compute_and_cache_states(model, tokenizer, <span class="op">**</span>param_values)</span>
+<span id="cb40-50"><a href="#cb40-50" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb40-51"><a href="#cb40-51" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb40-52"><a href="#cb40-52" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> validate_module_sequence(<span class="va">self</span>, module_names: List[<span class="bu">str</span>]):</span>
+<span id="cb40-53"><a href="#cb40-53" aria-hidden="true" tabindex="-1"></a>        <span class="co">"""</span></span>
+<span id="cb40-54"><a href="#cb40-54" aria-hidden="true" tabindex="-1"></a><span class="co">        Ensure the sequence of modules satisfies all rules and positional constraints.</span></span>
+<span id="cb40-55"><a href="#cb40-55" aria-hidden="true" tabindex="-1"></a><span class="co">        """</span></span>
+<span id="cb40-56"><a href="#cb40-56" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> rule <span class="kw">in</span> <span class="va">self</span>.rules.values():</span>
+<span id="cb40-57"><a href="#cb40-57" aria-hidden="true" tabindex="-1"></a>            rule.validate_combination(module_names)</span>
+<span id="cb40-58"><a href="#cb40-58" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb40-59"><a href="#cb40-59" aria-hidden="true" tabindex="-1"></a>        positions <span class="op">=</span> [<span class="va">self</span>.modules[name].position <span class="cf">for</span> name <span class="kw">in</span> module_names]</span>
+<span id="cb40-60"><a href="#cb40-60" aria-hidden="true" tabindex="-1"></a>        validate_module_sequence(positions)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="generate_with_modules-function" class="level3">
+<h3 class="anchored" data-anchor-id="generate_with_modules-function"><code>generate_with_modules</code> Function</h3>
+<p>This function generates text using a schema of cached prompt modules and a continuation text. Key steps include: - <strong>Validation</strong>: Ensures the selected modules comply with schema rules and positional constraints. - <strong>Combination</strong>: Merges the cached key-value (KV) attention states of the selected modules for efficient generation. - <strong>Continuation Generation</strong>: Appends user-provided text (<code>continuation</code>) and generates tokens autoregressively using the combined KV states.</p>
+<p>This function is the core of the generation process, leveraging precomputed states to reduce latency while ensuring modular flexibility.</p>
+<div id="cell-61" class="cell">
+<div class="sourceCode cell-code" id="cb41"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> generate_with_modules(</span>
+<span id="cb41-2"><a href="#cb41-2" aria-hidden="true" tabindex="-1"></a>    model,</span>
+<span id="cb41-3"><a href="#cb41-3" aria-hidden="true" tabindex="-1"></a>    tokenizer,</span>
+<span id="cb41-4"><a href="#cb41-4" aria-hidden="true" tabindex="-1"></a>    schema: Schema,</span>
+<span id="cb41-5"><a href="#cb41-5" aria-hidden="true" tabindex="-1"></a>    module_names: List[<span class="bu">str</span>],</span>
+<span id="cb41-6"><a href="#cb41-6" aria-hidden="true" tabindex="-1"></a>    continuation: <span class="bu">str</span>,</span>
+<span id="cb41-7"><a href="#cb41-7" aria-hidden="true" tabindex="-1"></a>    module_params: Dict[<span class="bu">str</span>, Dict] <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb41-8"><a href="#cb41-8" aria-hidden="true" tabindex="-1"></a>    max_length: <span class="bu">int</span> <span class="op">=</span> <span class="dv">50</span></span>
+<span id="cb41-9"><a href="#cb41-9" aria-hidden="true" tabindex="-1"></a>):</span>
+<span id="cb41-10"><a href="#cb41-10" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""</span></span>
+<span id="cb41-11"><a href="#cb41-11" aria-hidden="true" tabindex="-1"></a><span class="co">    Generate text by combining KV states from multiple modules.</span></span>
+<span id="cb41-12"><a href="#cb41-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb41-13"><a href="#cb41-13" aria-hidden="true" tabindex="-1"></a><span class="co">    - Validates the module sequence based on schema rules and positions.</span></span>
+<span id="cb41-14"><a href="#cb41-14" aria-hidden="true" tabindex="-1"></a><span class="co">    - Combines cached KV states for the selected modules.</span></span>
+<span id="cb41-15"><a href="#cb41-15" aria-hidden="true" tabindex="-1"></a><span class="co">    - Generates continuation text based on the combined KV states.</span></span>
+<span id="cb41-16"><a href="#cb41-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb41-17"><a href="#cb41-17" aria-hidden="true" tabindex="-1"></a><span class="co">    Args:</span></span>
+<span id="cb41-18"><a href="#cb41-18" aria-hidden="true" tabindex="-1"></a><span class="co">        model: The language model used for text generation.</span></span>
+<span id="cb41-19"><a href="#cb41-19" aria-hidden="true" tabindex="-1"></a><span class="co">        tokenizer: Tokenizer for preparing text inputs to the model.</span></span>
+<span id="cb41-20"><a href="#cb41-20" aria-hidden="true" tabindex="-1"></a><span class="co">        schema (Schema): The schema containing the modules.</span></span>
+<span id="cb41-21"><a href="#cb41-21" aria-hidden="true" tabindex="-1"></a><span class="co">        module_names (List[str]): Ordered list of module names to include in the prompt.</span></span>
+<span id="cb41-22"><a href="#cb41-22" aria-hidden="true" tabindex="-1"></a><span class="co">        continuation (str): Text to append after the modules for generation.</span></span>
+<span id="cb41-23"><a href="#cb41-23" aria-hidden="true" tabindex="-1"></a><span class="co">        module_params (Dict[str, Dict], optional): Parameter values for each module.</span></span>
+<span id="cb41-24"><a href="#cb41-24" aria-hidden="true" tabindex="-1"></a><span class="co">        max_length (int, optional): Maximum length of generated text.</span></span>
+<span id="cb41-25"><a href="#cb41-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb41-26"><a href="#cb41-26" aria-hidden="true" tabindex="-1"></a><span class="co">    Returns:</span></span>
+<span id="cb41-27"><a href="#cb41-27" aria-hidden="true" tabindex="-1"></a><span class="co">        str: The generated text.</span></span>
+<span id="cb41-28"><a href="#cb41-28" aria-hidden="true" tabindex="-1"></a><span class="co">    """</span></span>
+<span id="cb41-29"><a href="#cb41-29" aria-hidden="true" tabindex="-1"></a>   <span class="co"># Validate module sequence</span></span>
+<span id="cb41-30"><a href="#cb41-30" aria-hidden="true" tabindex="-1"></a>    schema.validate_module_sequence(module_names)</span>
+<span id="cb41-31"><a href="#cb41-31" aria-hidden="true" tabindex="-1"></a>    modules <span class="op">=</span> [schema.modules[name] <span class="cf">for</span> name <span class="kw">in</span> module_names]</span>
+<span id="cb41-32"><a href="#cb41-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb41-33"><a href="#cb41-33" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Combine cached KV states from the selected modules</span></span>
+<span id="cb41-34"><a href="#cb41-34" aria-hidden="true" tabindex="-1"></a>    first_states <span class="op">=</span> modules[<span class="dv">0</span>].cached_kv_states</span>
+<span id="cb41-35"><a href="#cb41-35" aria-hidden="true" tabindex="-1"></a>    combined_states <span class="op">=</span> []</span>
+<span id="cb41-36"><a href="#cb41-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb41-37"><a href="#cb41-37" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> layer_idx <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(first_states)):</span>
+<span id="cb41-38"><a href="#cb41-38" aria-hidden="true" tabindex="-1"></a>        k1, v1 <span class="op">=</span> first_states[layer_idx]</span>
+<span id="cb41-39"><a href="#cb41-39" aria-hidden="true" tabindex="-1"></a>        k_combined, v_combined <span class="op">=</span> k1, v1</span>
+<span id="cb41-40"><a href="#cb41-40" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb41-41"><a href="#cb41-41" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> module <span class="kw">in</span> modules[<span class="dv">1</span>:]:</span>
+<span id="cb41-42"><a href="#cb41-42" aria-hidden="true" tabindex="-1"></a>            k_module, v_module <span class="op">=</span> module.cached_kv_states[layer_idx]</span>
+<span id="cb41-43"><a href="#cb41-43" aria-hidden="true" tabindex="-1"></a>            k_combined <span class="op">=</span> torch.cat([k_combined, k_module], dim<span class="op">=</span><span class="dv">2</span>)</span>
+<span id="cb41-44"><a href="#cb41-44" aria-hidden="true" tabindex="-1"></a>            v_combined <span class="op">=</span> torch.cat([v_combined, v_module], dim<span class="op">=</span><span class="dv">2</span>)</span>
+<span id="cb41-45"><a href="#cb41-45" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb41-46"><a href="#cb41-46" aria-hidden="true" tabindex="-1"></a>        combined_states.append((k_combined, v_combined))</span>
+<span id="cb41-47"><a href="#cb41-47" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb41-48"><a href="#cb41-48" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Create a dynamic cache for the combined states</span></span>
+<span id="cb41-49"><a href="#cb41-49" aria-hidden="true" tabindex="-1"></a>    past_key_values <span class="op">=</span> DynamicCache.from_legacy_cache(combined_states)</span>
+<span id="cb41-50"><a href="#cb41-50" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb41-51"><a href="#cb41-51" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Tokenize the continuation text</span></span>
+<span id="cb41-52"><a href="#cb41-52" aria-hidden="true" tabindex="-1"></a>    continuation_ids <span class="op">=</span> tokenizer.encode(continuation, return_tensors<span class="op">=</span><span class="st">'pt'</span>).to(model.device)</span>
+<span id="cb41-53"><a href="#cb41-53" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb41-54"><a href="#cb41-54" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Generate tokens autoregressively</span></span>
+<span id="cb41-55"><a href="#cb41-55" aria-hidden="true" tabindex="-1"></a>    <span class="cf">with</span> torch.no_grad():</span>
+<span id="cb41-56"><a href="#cb41-56" aria-hidden="true" tabindex="-1"></a>        outputs <span class="op">=</span> model(</span>
+<span id="cb41-57"><a href="#cb41-57" aria-hidden="true" tabindex="-1"></a>            continuation_ids,</span>
+<span id="cb41-58"><a href="#cb41-58" aria-hidden="true" tabindex="-1"></a>            use_cache<span class="op">=</span><span class="va">True</span>,</span>
+<span id="cb41-59"><a href="#cb41-59" aria-hidden="true" tabindex="-1"></a>            past_key_values<span class="op">=</span>past_key_values,</span>
+<span id="cb41-60"><a href="#cb41-60" aria-hidden="true" tabindex="-1"></a>            return_dict<span class="op">=</span><span class="va">True</span></span>
+<span id="cb41-61"><a href="#cb41-61" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb41-62"><a href="#cb41-62" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb41-63"><a href="#cb41-63" aria-hidden="true" tabindex="-1"></a>        generated_sequence <span class="op">=</span> continuation_ids</span>
+<span id="cb41-64"><a href="#cb41-64" aria-hidden="true" tabindex="-1"></a>        generated_text <span class="op">=</span> []</span>
+<span id="cb41-65"><a href="#cb41-65" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb41-66"><a href="#cb41-66" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(max_length):</span>
+<span id="cb41-67"><a href="#cb41-67" aria-hidden="true" tabindex="-1"></a>            next_token_logits <span class="op">=</span> outputs.logits[:, <span class="op">-</span><span class="dv">1</span>, :]</span>
+<span id="cb41-68"><a href="#cb41-68" aria-hidden="true" tabindex="-1"></a>            next_token <span class="op">=</span> torch.argmax(torch.softmax(next_token_logits, dim<span class="op">=-</span><span class="dv">1</span>)).unsqueeze(<span class="dv">0</span>).unsqueeze(<span class="dv">0</span>)</span>
+<span id="cb41-69"><a href="#cb41-69" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb41-70"><a href="#cb41-70" aria-hidden="true" tabindex="-1"></a>            generated_sequence <span class="op">=</span> torch.cat([generated_sequence, next_token], dim<span class="op">=-</span><span class="dv">1</span>)</span>
+<span id="cb41-71"><a href="#cb41-71" aria-hidden="true" tabindex="-1"></a>            generated_text.append(next_token.item())</span>
+<span id="cb41-72"><a href="#cb41-72" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb41-73"><a href="#cb41-73" aria-hidden="true" tabindex="-1"></a>            outputs <span class="op">=</span> model(</span>
+<span id="cb41-74"><a href="#cb41-74" aria-hidden="true" tabindex="-1"></a>                next_token,</span>
+<span id="cb41-75"><a href="#cb41-75" aria-hidden="true" tabindex="-1"></a>                use_cache<span class="op">=</span><span class="va">True</span>,</span>
+<span id="cb41-76"><a href="#cb41-76" aria-hidden="true" tabindex="-1"></a>                past_key_values<span class="op">=</span>outputs.past_key_values,</span>
+<span id="cb41-77"><a href="#cb41-77" aria-hidden="true" tabindex="-1"></a>                return_dict<span class="op">=</span><span class="va">True</span></span>
+<span id="cb41-78"><a href="#cb41-78" aria-hidden="true" tabindex="-1"></a>            )</span>
+<span id="cb41-79"><a href="#cb41-79" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb41-80"><a href="#cb41-80" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> next_token.item() <span class="op">==</span> tokenizer.eos_token_id:</span>
+<span id="cb41-81"><a href="#cb41-81" aria-hidden="true" tabindex="-1"></a>                <span class="cf">break</span></span>
+<span id="cb41-82"><a href="#cb41-82" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb41-83"><a href="#cb41-83" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> tokenizer.decode(generated_text, skip_special_tokens<span class="op">=</span><span class="va">True</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="creating-and-using-a-schema-for-modular-prompt-caching" class="level3">
+<h3 class="anchored" data-anchor-id="creating-and-using-a-schema-for-modular-prompt-caching">Creating and Using a Schema for Modular Prompt Caching</h3>
+<p>This example demonstrates how to: 1. Create a schema (<code>coding_qa</code>) for a Q&amp;A task. 2. Add reusable prompt modules to the schema, such as <code>system</code> (AI instructions) and <code>python_doc</code> (context about Python). 3. Set parameters for these modules (e.g., <code>style</code> and <code>desc</code>). 4. Precompute and cache the key-value (KV) attention states for all modules. 5. Generate text using the schema and the cached modules.</p>
+<p>This setup showcases how reusable modular prompts can enhance efficiency while maintaining flexibility.</p>
+<div id="cell-63" class="cell">
+<div class="sourceCode cell-code" id="cb42"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Create schema</span></span>
+<span id="cb42-2"><a href="#cb42-2" aria-hidden="true" tabindex="-1"></a>schema <span class="op">=</span> Schema(<span class="st">"coding_qa"</span>)</span>
+<span id="cb42-3"><a href="#cb42-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb42-4"><a href="#cb42-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Add modules</span></span>
+<span id="cb42-5"><a href="#cb42-5" aria-hidden="true" tabindex="-1"></a>schema.add_module(</span>
+<span id="cb42-6"><a href="#cb42-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">"system"</span>,</span>
+<span id="cb42-7"><a href="#cb42-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">"You are a helpful AI assistant. </span><span class="sc">{style:10}</span><span class="st">"</span>,</span>
+<span id="cb42-8"><a href="#cb42-8" aria-hidden="true" tabindex="-1"></a>    length_reserve<span class="op">=</span><span class="dv">20</span>,</span>
+<span id="cb42-9"><a href="#cb42-9" aria-hidden="true" tabindex="-1"></a>    rule<span class="op">=</span>CombinationRule(<span class="st">"system"</span>, required<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb42-10"><a href="#cb42-10" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb42-11"><a href="#cb42-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb42-12"><a href="#cb42-12" aria-hidden="true" tabindex="-1"></a>schema.add_module(</span>
+<span id="cb42-13"><a href="#cb42-13" aria-hidden="true" tabindex="-1"></a>    <span class="st">"python_doc"</span>,</span>
+<span id="cb42-14"><a href="#cb42-14" aria-hidden="true" tabindex="-1"></a>    <span class="st">"Python is a </span><span class="sc">{desc:20}</span><span class="st"> programming language."</span>,</span>
+<span id="cb42-15"><a href="#cb42-15" aria-hidden="true" tabindex="-1"></a>    length_reserve<span class="op">=</span><span class="dv">30</span>,</span>
+<span id="cb42-16"><a href="#cb42-16" aria-hidden="true" tabindex="-1"></a>    rule<span class="op">=</span>CombinationRule(<span class="st">"python_doc"</span>, must_follow<span class="op">=</span>{<span class="st">"system"</span>})</span>
+<span id="cb42-17"><a href="#cb42-17" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb42-18"><a href="#cb42-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb42-19"><a href="#cb42-19" aria-hidden="true" tabindex="-1"></a><span class="co"># Set module parameters</span></span>
+<span id="cb42-20"><a href="#cb42-20" aria-hidden="true" tabindex="-1"></a>schema.set_module_params({</span>
+<span id="cb42-21"><a href="#cb42-21" aria-hidden="true" tabindex="-1"></a>    <span class="st">"system"</span>: {<span class="st">"style"</span>: <span class="st">"Be concise"</span>},</span>
+<span id="cb42-22"><a href="#cb42-22" aria-hidden="true" tabindex="-1"></a>    <span class="st">"python_doc"</span>: {<span class="st">"desc"</span>: <span class="st">"high-level interpreted"</span>}</span>
+<span id="cb42-23"><a href="#cb42-23" aria-hidden="true" tabindex="-1"></a>})</span>
+<span id="cb42-24"><a href="#cb42-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb42-25"><a href="#cb42-25" aria-hidden="true" tabindex="-1"></a><span class="co"># Cache all modules</span></span>
+<span id="cb42-26"><a href="#cb42-26" aria-hidden="true" tabindex="-1"></a>schema.cache_all(model, tokenizer)</span>
+<span id="cb42-27"><a href="#cb42-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb42-28"><a href="#cb42-28" aria-hidden="true" tabindex="-1"></a><span class="co"># Generate using modules</span></span>
+<span id="cb42-29"><a href="#cb42-29" aria-hidden="true" tabindex="-1"></a>output <span class="op">=</span> generate_with_modules(</span>
+<span id="cb42-30"><a href="#cb42-30" aria-hidden="true" tabindex="-1"></a>    model,</span>
+<span id="cb42-31"><a href="#cb42-31" aria-hidden="true" tabindex="-1"></a>    tokenizer,</span>
+<span id="cb42-32"><a href="#cb42-32" aria-hidden="true" tabindex="-1"></a>    schema,</span>
+<span id="cb42-33"><a href="#cb42-33" aria-hidden="true" tabindex="-1"></a>    module_names<span class="op">=</span>[<span class="st">"system"</span>, <span class="st">"python_doc"</span>],</span>
+<span id="cb42-34"><a href="#cb42-34" aria-hidden="true" tabindex="-1"></a>    continuation<span class="op">=</span><span class="st">"How do I write a function?"</span></span>
+<span id="cb42-35"><a href="#cb42-35" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb42-36"><a href="#cb42-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb42-37"><a href="#cb42-37" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Generated:"</span>, output)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Caching module 'system'...
+Caching module 'python_doc'...
+Generated:  I want to write a function that takes a list of strings and returns a list of strings. I want to use the function to create a list of strings that are the concatenation of the strings in the input list. I want to use the function</code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="extending-and-modifying-schemas" class="level1">
+<h1>Extending and Modifying Schemas</h1>
+<p>Here’s how you can create a different schema or add new modules to an existing schema to expand the cache dynamically.</p>
+<hr>
+<section id="creating-a-different-schema" class="level4">
+<h4 class="anchored" data-anchor-id="creating-a-different-schema"><strong>Creating a Different Schema</strong></h4>
+<p>If a user wants to set up a new schema, they can follow the same workflow as before:</p>
+<div id="cell-65" class="cell">
+<div class="sourceCode cell-code" id="cb44"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb44-1"><a href="#cb44-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Create a new schema for a different purpose</span></span>
+<span id="cb44-2"><a href="#cb44-2" aria-hidden="true" tabindex="-1"></a>new_schema <span class="op">=</span> Schema(<span class="st">"math_tutor"</span>)</span>
+<span id="cb44-3"><a href="#cb44-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb44-4"><a href="#cb44-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Add modules</span></span>
+<span id="cb44-5"><a href="#cb44-5" aria-hidden="true" tabindex="-1"></a>new_schema.add_module(</span>
+<span id="cb44-6"><a href="#cb44-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">"system"</span>,</span>
+<span id="cb44-7"><a href="#cb44-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">"You are a helpful math tutor. </span><span class="sc">{style:10}</span><span class="st">"</span>,</span>
+<span id="cb44-8"><a href="#cb44-8" aria-hidden="true" tabindex="-1"></a>    length_reserve<span class="op">=</span><span class="dv">20</span>,</span>
+<span id="cb44-9"><a href="#cb44-9" aria-hidden="true" tabindex="-1"></a>    rule<span class="op">=</span>CombinationRule(<span class="st">"system"</span>, required<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb44-10"><a href="#cb44-10" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb44-11"><a href="#cb44-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb44-12"><a href="#cb44-12" aria-hidden="true" tabindex="-1"></a>new_schema.add_module(</span>
+<span id="cb44-13"><a href="#cb44-13" aria-hidden="true" tabindex="-1"></a>    <span class="st">"example"</span>,</span>
+<span id="cb44-14"><a href="#cb44-14" aria-hidden="true" tabindex="-1"></a>    <span class="st">"Here is an example: </span><span class="sc">{example_text:50}</span><span class="st">"</span>,</span>
+<span id="cb44-15"><a href="#cb44-15" aria-hidden="true" tabindex="-1"></a>    length_reserve<span class="op">=</span><span class="dv">60</span></span>
+<span id="cb44-16"><a href="#cb44-16" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb44-17"><a href="#cb44-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb44-18"><a href="#cb44-18" aria-hidden="true" tabindex="-1"></a><span class="co"># Set parameters for the new schema</span></span>
+<span id="cb44-19"><a href="#cb44-19" aria-hidden="true" tabindex="-1"></a>new_schema.set_module_params({</span>
+<span id="cb44-20"><a href="#cb44-20" aria-hidden="true" tabindex="-1"></a>    <span class="st">"system"</span>: {<span class="st">"style"</span>: <span class="st">"Explain thoroughly"</span>},</span>
+<span id="cb44-21"><a href="#cb44-21" aria-hidden="true" tabindex="-1"></a>    <span class="st">"example"</span>: {<span class="st">"example_text"</span>: <span class="st">"How to solve quadratic equations"</span>}</span>
+<span id="cb44-22"><a href="#cb44-22" aria-hidden="true" tabindex="-1"></a>})</span>
+<span id="cb44-23"><a href="#cb44-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb44-24"><a href="#cb44-24" aria-hidden="true" tabindex="-1"></a><span class="co"># Cache all modules in the new schema</span></span>
+<span id="cb44-25"><a href="#cb44-25" aria-hidden="true" tabindex="-1"></a>new_schema.cache_all(model, tokenizer)</span>
+<span id="cb44-26"><a href="#cb44-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb44-27"><a href="#cb44-27" aria-hidden="true" tabindex="-1"></a><span class="co"># Generate using the new schema</span></span>
+<span id="cb44-28"><a href="#cb44-28" aria-hidden="true" tabindex="-1"></a>output <span class="op">=</span> generate_with_modules(</span>
+<span id="cb44-29"><a href="#cb44-29" aria-hidden="true" tabindex="-1"></a>    model,</span>
+<span id="cb44-30"><a href="#cb44-30" aria-hidden="true" tabindex="-1"></a>    tokenizer,</span>
+<span id="cb44-31"><a href="#cb44-31" aria-hidden="true" tabindex="-1"></a>    new_schema,</span>
+<span id="cb44-32"><a href="#cb44-32" aria-hidden="true" tabindex="-1"></a>    module_names<span class="op">=</span>[<span class="st">"system"</span>, <span class="st">"example"</span>],</span>
+<span id="cb44-33"><a href="#cb44-33" aria-hidden="true" tabindex="-1"></a>    continuation<span class="op">=</span><span class="st">"Can you provide another example?"</span></span>
+<span id="cb44-34"><a href="#cb44-34" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb44-35"><a href="#cb44-35" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb44-36"><a href="#cb44-36" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Generated:"</span>, output)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Caching module 'system'...
+Caching module 'example'...
+Generated:  I am not sure how to solve this one. I have a quadratic equation with 2x^2 + 2x + 1 = 0. I know that the solutions are x = -1 and x = -2/2.</code></pre>
+</div>
+</div>
+</section>
+<section id="modifying-an-existing-schema" class="level4">
+<h4 class="anchored" data-anchor-id="modifying-an-existing-schema"><strong>Modifying an Existing Schema</strong></h4>
+<p>Or, you can add to the cache of an existing schema:</p>
+<div id="cell-67" class="cell">
+<div class="sourceCode cell-code" id="cb46"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb46-1"><a href="#cb46-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Add a new module to the existing schema</span></span>
+<span id="cb46-2"><a href="#cb46-2" aria-hidden="true" tabindex="-1"></a>schema.add_module(</span>
+<span id="cb46-3"><a href="#cb46-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">"additional_doc"</span>,</span>
+<span id="cb46-4"><a href="#cb46-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">"This document explains advanced </span><span class="sc">{topic:15}</span><span class="st">."</span>,</span>
+<span id="cb46-5"><a href="#cb46-5" aria-hidden="true" tabindex="-1"></a>    length_reserve<span class="op">=</span><span class="dv">40</span>,</span>
+<span id="cb46-6"><a href="#cb46-6" aria-hidden="true" tabindex="-1"></a>    rule<span class="op">=</span>CombinationRule(<span class="st">"additional_doc"</span>, must_follow<span class="op">=</span>{<span class="st">"system"</span>})</span>
+<span id="cb46-7"><a href="#cb46-7" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb46-8"><a href="#cb46-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb46-9"><a href="#cb46-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Update parameters for the new module</span></span>
+<span id="cb46-10"><a href="#cb46-10" aria-hidden="true" tabindex="-1"></a>schema.set_module_params({</span>
+<span id="cb46-11"><a href="#cb46-11" aria-hidden="true" tabindex="-1"></a>    <span class="st">"additional_doc"</span>: {<span class="st">"topic"</span>: <span class="st">"Python features"</span>}</span>
+<span id="cb46-12"><a href="#cb46-12" aria-hidden="true" tabindex="-1"></a>})</span>
+<span id="cb46-13"><a href="#cb46-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb46-14"><a href="#cb46-14" aria-hidden="true" tabindex="-1"></a><span class="co"># Cache the new module</span></span>
+<span id="cb46-15"><a href="#cb46-15" aria-hidden="true" tabindex="-1"></a>schema.cache_all(model, tokenizer)</span>
+<span id="cb46-16"><a href="#cb46-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb46-17"><a href="#cb46-17" aria-hidden="true" tabindex="-1"></a><span class="co"># Generate using the updated schema</span></span>
+<span id="cb46-18"><a href="#cb46-18" aria-hidden="true" tabindex="-1"></a>output <span class="op">=</span> generate_with_modules(</span>
+<span id="cb46-19"><a href="#cb46-19" aria-hidden="true" tabindex="-1"></a>    model,</span>
+<span id="cb46-20"><a href="#cb46-20" aria-hidden="true" tabindex="-1"></a>    tokenizer,</span>
+<span id="cb46-21"><a href="#cb46-21" aria-hidden="true" tabindex="-1"></a>    schema,</span>
+<span id="cb46-22"><a href="#cb46-22" aria-hidden="true" tabindex="-1"></a>    module_names<span class="op">=</span>[<span class="st">"system"</span>, <span class="st">"python_doc"</span>, <span class="st">"additional_doc"</span>],</span>
+<span id="cb46-23"><a href="#cb46-23" aria-hidden="true" tabindex="-1"></a>    continuation<span class="op">=</span><span class="st">"Tell me about Python decorators"</span></span>
+<span id="cb46-24"><a href="#cb46-24" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb46-25"><a href="#cb46-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb46-26"><a href="#cb46-26" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Generated with new module:"</span>, output)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Caching module 'system'...
+Caching module 'python_doc'...
+Caching module 'additional_doc'...
+Generated with new module: .
+A decorator is a function that adds functionality to another function. Decorators are used to add functionality to functions. Decorators are used to add functionality to functions. Decorators are used to add functionality to functions. Decorators are used to add functionality</code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="final-thoughts" class="level1">
+<h1>Final Thoughts</h1>
+<p>And that’s it! Here we’ve implemented a basic version of the concepts covered in the Prompt Caching paper.</p>
+<p>Full disclosure, here are some things we left on the table:</p>
+<ol type="1">
+<li><strong>Scaffolding</strong>:
+<ul>
+<li>Scaffolding allows semantically dependent modules to share the same attention span by encoding them together as a group.</li>
+<li>This can be useful when modules rely on shared context, ensuring that interdependent relationships between modules are preserved.</li>
+<li>Example Use Case: Combining a system module with an example module that references the system instructions.</li>
+</ul></li>
+<li><strong>Union Modules</strong>:
+<ul>
+<li>Union modules represent mutually exclusive sets of prompt modules (e.g., <code>{module1, module2}</code>).</li>
+<li>These are particularly useful when users need to choose one module from a group but not all at the same time.</li>
+<li>Example Use Case: Switching between different document languages (e.g., <code>doc-en-US</code> vs.&nbsp;<code>doc-zh-CN</code>).</li>
+</ul></li>
+<li><strong>Parameterized Buffers</strong>:
+<ul>
+<li>Parameters in schemas can include buffers (i.e., placeholders with flexible token limits) that allow users to add arbitrary content dynamically.</li>
+<li>This could enhance reuse by supporting slight variations in module content without needing a new module.</li>
+<li>Example Use Case: Allowing a prompt to include user-provided examples or instructions dynamically.</li>
+</ul></li>
+</ol>
+<p>And some additional optimization techniques, including:</p>
+<ol type="1">
+<li><strong>Dynamic Cache Optimization</strong>:
+<ul>
+<li>The paper explores strategies for optimizing memory usage by sharing KV states across concurrent requests (e.g., in batched inference scenarios).</li>
+<li>These optimizations can significantly reduce memory overhead and improve throughput for large-scale deployments.</li>
+</ul></li>
+<li><strong>Compression for KV States</strong>:
+<ul>
+<li>Compression techniques for KV states are suggested to reduce the memory footprint of cached states, especially for long-context LLMs or large schemas.</li>
+<li>Example Use Case: Compressing cached KV states for modules stored in CPU memory for efficient retrieval.</li>
+</ul></li>
+</ol>
+<p>These concepts can further enhance flexibility, modularity, and performance in real-world applications, especially for systems with complex or large-scale prompts. So, while too complex for the introduction here, they are still concepts that can greatly enhance the speed of our LLM’s!</p>
+
+
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp("https:\/\/apetulante\.github\.io");
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>
