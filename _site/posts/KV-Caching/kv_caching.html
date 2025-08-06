@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 <meta name="author" content="Abbie Petulante">
-<meta name="dcterms.date" content="2025-01-16">
+<meta name="dcterms.date" content="2025-01-09">
 <meta name="description" content="A guide to how KV caching is implemented for LLMs, including a practical example of implementing it for LLaMa 3.2 1B.">
 
 <title>KV Caching – Abbie’s AI Tutorials</title>
@@ -206,7 +206,7 @@ window.Quarto = {
       <div>
       <div class="quarto-title-meta-heading">Published</div>
       <div class="quarto-title-meta-contents">
-        <p class="date">January 16, 2025</p>
+        <p class="date">January 9, 2025</p>
       </div>
     </div>
     
@@ -225,12 +225,12 @@ window.Quarto = {
 
 
 
-<p><a target="_blank" href="https://colab.research.google.com/github/apetulante/Tutorials/blob/master/Inferencing/kv_caching.ipynb"> <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"> </a></p>
 <section id="understanding-kv-caching" class="level1">
 <h1>Understanding KV Caching</h1>
 <blockquote class="blockquote">
 <p>This notebook provides a hands-on exploration of KV caching in language model text generation, specifically using LLaMa 3.2 1B. We’ll examine how caching works, its benefits for inference speed, and its implications for model state management.</p>
 </blockquote>
+<p><a target="_blank" href="https://colab.research.google.com/github/apetulante/Tutorials/blob/master/Inferencing/kv_caching.ipynb"> <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"> </a></p>
 <section id="caching-what-is-it" class="level2">
 <h2 class="anchored" data-anchor-id="caching-what-is-it">Caching: What Is It?</h2>
 <p>When a language model processes text, it doesn’t just look at one word at a time - it builds up a complex internal state that represents its “understanding” of the entire context. This state consists of key-value pairs at each layer of the transformer architecture, which encode the relationships and patterns in the input text.</p>
@@ -260,11 +260,11 @@ window.Quarto = {
 <section id="installations-imports-and-setup" class="level1">
 <h1>Installations, Imports, and Setup</h1>
 <p>First, let’s install the necessary packages.</p>
-<div id="cell-5" class="cell" data-execution_count="1">
+<div id="cell-5" class="cell">
 <div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Install required packages</span></span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="op">!</span>pip install <span class="op">-</span>q <span class="op">--</span>upgrade transformers datasets</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<div id="cell-6" class="cell" data-execution_count="2">
+<div id="cell-6" class="cell">
 <div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Standard libraries</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> re</span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> os</span>
@@ -275,7 +275,7 @@ window.Quarto = {
 <span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> transformers <span class="im">import</span> AutoTokenizer, AutoModelForCausalLM</span>
 <span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> transformers.cache_utils <span class="im">import</span> DynamicCache</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<div id="cell-7" class="cell" data-outputid="6fe3c544-3775-4cec-8579-66b070cb0947" data-execution_count="3">
+<div id="cell-7" class="cell">
 <div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Check PyTorch version and CUDA availability</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"PyTorch version: </span><span class="sc">{</span>torch<span class="sc">.</span>__version__<span class="sc">}</span><span class="ss">"</span>)</span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"CUDA available: </span><span class="sc">{</span>torch<span class="sc">.</span>cuda<span class="sc">.</span>is_available()<span class="sc">}</span><span class="ss">"</span>)</span>
@@ -297,7 +297,7 @@ Available GPU memory: 39.56 GB</code></pre>
 <h2 class="anchored" data-anchor-id="hugging-face-authentication">Hugging Face Authentication</h2>
 <p>LLaMa 3.2 requires authentication with Hugging Face to access the model. You’ll need to: 1. Have a Hugging Face account 2. Accept the LLaMa 3.2 model terms of use on the Hugging Face model page 3. Create an access token on Hugging Face (https://huggingface.co/settings/tokens)</p>
 <p>After you have your access token and have accepted the terms, the code below will help you log in:</p>
-<div id="cell-9" class="cell" data-outputid="789265e5-607c-424b-f89a-7d2e43286c5f" data-execution_count="4">
+<div id="cell-9" class="cell">
 <div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> huggingface_hub <span class="im">import</span> login</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> getpass</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -311,7 +311,7 @@ Available GPU memory: 39.56 GB</code></pre>
 Login status: Authenticated with Hugging Face</code></pre>
 </div>
 </div>
-<div id="cell-10" class="cell" data-outputid="5a08883a-6b79-472a-fac8-3cdc8f0dd43a" data-execution_count="5">
+<div id="cell-10" class="cell">
 <div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>model_name <span class="op">=</span> <span class="st">"meta-llama/Llama-3.2-1B"</span></span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>tokenizer <span class="op">=</span> AutoTokenizer.from_pretrained(model_name)</span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> AutoModelForCausalLM.from_pretrained(model_name)</span>
@@ -326,7 +326,7 @@ You will be able to reuse this secret in all of your notebooks.
 Please note that authentication is recommended but still optional to access public models or datasets.
   warnings.warn(</code></pre>
 </div>
-<div class="cell-output cell-output-display" data-execution_count="5">
+<div class="cell-output cell-output-display">
 <pre><code>LlamaForCausalLM(
   (model): LlamaModel(
     (embed_tokens): Embedding(128256, 2048)
@@ -357,7 +357,7 @@ Please note that authentication is recommended but still optional to access publ
 </div>
 </div>
 <p>Before we dive into caching, let’s look at how the model processes text. We’ll create a simple function to tokenize and process text, showing the internal states at each step.</p>
-<div id="cell-13" class="cell" data-outputid="2e808f1e-ef13-41ba-8fca-9a68f66ae7ca" data-execution_count="6">
+<div id="cell-13" class="cell">
 <div class="sourceCode cell-code" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> inspect_tokens(text):</span>
 <span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Display token information for a given text."""</span></span>
 <span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    tokens <span class="op">=</span> tokenizer.encode(text, return_tensors<span class="op">=</span><span class="st">"pt"</span>)</span>
@@ -392,7 +392,7 @@ Decoded tokens:
 <hr>
 <p><strong><em>One important note:</em></strong> Caching is actually implemented by default in huggingface: any normal call with model() will implement a cache automatically unless <code>use_cache</code> is specifically set to <code>False</code>.</p>
 <p>For now, to illustrate our point, we’ll do this. Later, when we implement caching, we’ll explore some ways to have finer control over this caching, so it’s not just all happening under the hood.</p>
-<div id="cell-15" class="cell" data-execution_count="7">
+<div id="cell-15" class="cell">
 <div class="sourceCode cell-code" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> generate_completion(prompt, max_length<span class="op">=</span><span class="dv">100</span>):</span>
 <span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Generate a completion without caching."""</span></span>
 <span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -423,7 +423,7 @@ Decoded tokens:
 <span id="cb12-28"><a href="#cb12-28" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb12-29"><a href="#cb12-29" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> generated_text, end_time <span class="op">-</span> start_time</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<div id="cell-16" class="cell" data-outputid="6703e78e-3bda-4a21-bdd7-ad0052a36327" data-execution_count="8">
+<div id="cell-16" class="cell">
 <div class="sourceCode cell-code" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Let's try it with a simple prompt. We'll make it long enough that we can see meaningful speedup.</span></span>
 <span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>prompt <span class="op">=</span> <span class="st">'''Continue a short story about the fall of an ancient civilization. This civilization was once the greatest that the world had ever seen. It now only exists as ruins, and tourists</span></span>
 <span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="st">who go there in the modern day do not know much of anything about it. At it's height, the civilization was massive, had a thriving economy, beautiful gardens, and a</span></span>
@@ -446,7 +446,7 @@ Time taken: 4.77 seconds</code></pre>
 <p>In the above function, you can see that we start with tokenizing the prompt, then passing through that prompt to prep the model to generate a response.</p>
 <p>Then, we one by one generate tokens that follow that input to arrive at our final generation.</p>
 <p>One thing that we can think to easily do, which gets us a step “closer” to caching, might be to simply save that first pass through the prompt elsewhere, outside of the function, to make sure that our function now only picks up generating the additional tokens. This would save us the first pass through the initial prompt, at least.</p>
-<div id="cell-18" class="cell" data-execution_count="9">
+<div id="cell-18" class="cell">
 <div class="sourceCode cell-code" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> generate_skipped_input_completion(starting_logits, starting_inputs, max_length<span class="op">=</span><span class="dv">100</span>):</span>
 <span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Generate a completion, giving the logits to begin with."""</span></span>
 <span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>    input_ids <span class="op">=</span> starting_inputs.to(device)</span>
@@ -473,7 +473,7 @@ Time taken: 4.77 seconds</code></pre>
 <span id="cb15-24"><a href="#cb15-24" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb15-25"><a href="#cb15-25" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> generated_text</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<div id="cell-19" class="cell" data-outputid="5f2e9433-bd69-400c-b953-55f3327bae1e" data-execution_count="10">
+<div id="cell-19" class="cell">
 <div class="sourceCode cell-code" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="co">#Use the same prompt as before</span></span>
 <span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>start_time <span class="op">=</span> time.time()</span>
@@ -779,7 +779,7 @@ size_{total} = L \times 2 \times \mathit{h} \times s \times \frac{d}{\mathit{h}}
 <li>Debug attention patterns</li>
 </ul>
 <p>You can read more about different ways to implement caching in <a href="https://huggingface.co/docs/transformers/kv_cache#best-practices-for-generation-with-cache">the huggingface Cache documentation</a>.</p>
-<div id="cell-27" class="cell" data-execution_count="11">
+<div id="cell-27" class="cell">
 <div class="sourceCode cell-code" id="cb19"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> generate_kv_cached_completion(prompt, max_length<span class="op">=</span><span class="dv">100</span>):</span>
 <span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""</span></span>
 <span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a><span class="co">    Generate completion using explicit KV caching with DynamicCache.</span></span>
@@ -830,7 +830,7 @@ size_{total} = L \times 2 \times \mathit{h} \times s \times \frac{d}{\mathit{h}}
 <span id="cb19-48"><a href="#cb19-48" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> tokenizer.decode(generated_text, skip_special_tokens<span class="op">=</span><span class="va">True</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <p>Now, let’s see how much this speeds up the generation of our story.</p>
-<div id="cell-29" class="cell" data-outputid="7c8e58ce-27c3-4522-a94d-0283aa276bb4" data-execution_count="12">
+<div id="cell-29" class="cell">
 <div class="sourceCode cell-code" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Using a long prompt:</span></span>
 <span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>prompt <span class="op">=</span> <span class="st">"""The last library on Earth wasn't a building - it was a person. Her name was Sarah Chen, and she was the final recipient of the Memory Archive Protocol,</span></span>
 <span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a><span class="st">a desperate procedure developed in the last days before the global web collapsed.</span></span>

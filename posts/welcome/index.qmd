@@ -2,7 +2,7 @@
 title: "Welcome To My Tutorials Blog!"
 author: "Abbie Petulante"
 date: "2025-02-25" # Extremely old date ensures it's last
-sort-order: 999
+sort-order: 0
 categories: []
 ---
 

@@ -1,15 +1,18 @@
 ---
 title: "AI Jupyter Notebook Tutorials"
 listing:
-  contents: 
+  contents:
+    - "posts/LLaVA-Astronomy"
+    - "posts/PEFT-LoRA"
+    - "posts/Prompt-Caching" 
     - "posts/KV-Caching"
     - "posts/RL-for-LLMs"
     - "posts/UNet-Tutorial"
     - "posts/welcome"
   type: default
   categories: true
-  sort-ui: false
-  filter-ui: false
+  sort: "sort-order desc"
+cui: false
 page-layout: full
 title-block-banner: true
 ---

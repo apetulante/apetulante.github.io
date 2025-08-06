@@ -191,6 +191,7 @@ window.Quarto = {
                           <div class="quarto-categories">
                 <div class="quarto-category">architectures</div>
                 <div class="quarto-category">CNNs</div>
+                <div class="quarto-category">vision</div>
               </div>
                   </div>
   </div>
@@ -227,11 +228,17 @@ window.Quarto = {
 
 
 
+<section id="the-u-net" class="level1">
+<h1>The U-Net</h1>
+<blockquote class="blockquote">
+<p>In this notebook, we take a detailed look at the <strong>U-Net architecture</strong>: a CNN architecture that’s utilized in a number of applications for image reconstruction. Utilizing skip connections to pass information between “arms”, this encoder-decoder architecture remains highly relevant in a number of domains!</p>
+</blockquote>
+<p><a target="_blank" href="https://colab.research.google.com/github/apetulante/Tutorials/blob/master/Architectures/UNet_Tutorial/UNet_Tutorial.ipynb"> <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"> </a></p>
 <p><font size="5"><strong>0. Pre-Tutorial</strong></font> <a id="#0"></a></p>
 <p>Before we start, let’s check that the GPU is ready to go if we have one, and import packages that we’ll need, and talk about the motivations behind using a U-Net</p>
 <p><a id="0.1"></a> <font size="4"><strong>0.1 Some Setup</strong></font></p><font size="4">
 <p>We’ll start by importing the packages we’ll need, and define a string which is just the path to the folder that contains this notebook as well as all of the other images/data needed to run it (should be in folders as they are on github).</p>
-<div id="cell-4" class="cell" data-execution_count="8">
+<div id="cell-6" class="cell">
 <div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="op">!</span>pip install <span class="op">-</span>q keras</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np </span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> os</span>
@@ -257,7 +264,7 @@ window.Quarto = {
 <p><a id="0.2"></a> <font size="4"><strong>0.2 What is a UNet?</strong></font></p>
 <p>You might be wondering: what exactly is a UNet? Why would I want to use one? How is it different from other convolutional neural nets? So we’ll start by giving a bit of motivation for why UNets are so useful.</p>
 <p>Let’s say we have an image.</p>
-<div id="cell-7" class="cell" data-execution_count="9">
+<div id="cell-9" class="cell">
 <div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>display(Im(<span class="st">'</span><span class="sc">%s</span><span class="st">/data/test_input.png'</span> <span class="op">%</span>filepath, height<span class="op">=</span><span class="dv">270</span>, width<span class="op">=</span><span class="dv">270</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-display">
 <div>
@@ -269,7 +276,7 @@ window.Quarto = {
 </div>
 <p>A “normal” CNN task might be to say “that’s a stomach” given that the image could have been from a stomach, brain, or skin. (Full disclosure: I don’t know what this image is of, but it’s a medical image of some sort).</p>
 <p>Let’s say instead though, that we want this:</p>
-<div id="cell-9" class="cell" data-execution_count="10">
+<div id="cell-11" class="cell">
 <div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>display(Im(<span class="st">'</span><span class="sc">%s</span><span class="st">/data/test_output.png'</span> <span class="op">%</span>filepath, height<span class="op">=</span><span class="dv">270</span>, width<span class="op">=</span><span class="dv">270</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-display">
 <div>
@@ -286,7 +293,7 @@ window.Quarto = {
 <p><a id="1.1"></a> <font size="4"><strong>1.1 The Convolution Operation</strong></font></p>
 <p>First, we need to cover exactly what a “convolution” means. The building blocks of convolutions are essentially dot products over matricies - we multiply the values in a matrix by the corresponding values in another matrix, then add the values together to get a number.</p>
 <p>Let’s define matricies A and B, then take the dot product between them.</p>
-<div id="cell-14" class="cell" data-outputid="5e1db05a-08ea-4d37-e6e7-5f407bb7d457" data-execution_count="3">
+<div id="cell-16" class="cell">
 <div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>a <span class="op">=</span> np.array([[<span class="dv">1</span>,<span class="dv">1</span>,<span class="dv">1</span>],[<span class="dv">0</span>,<span class="dv">0</span>,<span class="dv">0</span>],[<span class="dv">1</span>,<span class="dv">1</span>,<span class="dv">1</span>]])</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>b <span class="op">=</span> np.array([[<span class="dv">3</span>,<span class="dv">2</span>,<span class="dv">3</span>],[<span class="dv">4</span>,<span class="dv">2</span>,<span class="dv">4</span>],[<span class="dv">3</span>,<span class="dv">3</span>,<span class="dv">3</span>]])</span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -321,7 +328,7 @@ y = \begin{bmatrix}a&amp;b&amp;c\\d&amp;e&amp;f\\g&amp;h&amp;i\end{bmatrix} * \b
 \end{equation*}\]</span></p>
 <p>In convolutional network applications, we typically call this matrix of weights a <strong>filter</strong>. In other applications that use convolutions, it may also be called a <strong>kernel</strong>.</p>
 <p>Let’s use matrix A from before, this time to convolve a simple, 5x5 image. The image we are going to convolve is shown below:</p>
-<div id="cell-19" class="cell" data-outputid="7f1a147c-f3c9-4d87-9195-d89af4547d73" data-execution_count="4">
+<div id="cell-21" class="cell">
 <div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>im <span class="op">=</span> np.array([[<span class="dv">0</span>,<span class="dv">3</span>,<span class="dv">6</span>,<span class="dv">2</span>,<span class="dv">3</span>],</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>               [<span class="dv">2</span>,<span class="dv">5</span>,<span class="dv">6</span>,<span class="dv">3</span>,<span class="dv">1</span>],</span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>               [<span class="dv">1</span>,<span class="dv">2</span>,<span class="dv">0</span>,<span class="dv">0</span>,<span class="dv">3</span>],</span>
@@ -344,7 +351,7 @@ y = \begin{bmatrix}a&amp;b&amp;c\\d&amp;e&amp;f\\g&amp;h&amp;i\end{bmatrix} * \b
 </div>
 </div>
 <p>The first step is to take the 3x3 block in the upper left of our image, and multiply that by our weights:</p>
-<div id="cell-21" class="cell" data-outputid="e5b903b3-7c11-442f-d2f4-6792c05262f4" data-execution_count="5">
+<div id="cell-23" class="cell">
 <div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>fig <span class="op">=</span> plt.figure(figsize<span class="op">=</span>(<span class="dv">18</span>,<span class="dv">5</span>))</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>ax1, ax2, ax3, ax4 <span class="op">=</span> fig.subplots(<span class="dv">1</span>,<span class="dv">4</span>)</span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>ax1.imshow(im, cmap <span class="op">=</span> <span class="st">"Greys"</span>), ax1.set_title(<span class="st">"Full Image"</span>)</span>
@@ -357,7 +364,7 @@ y = \begin{bmatrix}a&amp;b&amp;c\\d&amp;e&amp;f\\g&amp;h&amp;i\end{bmatrix} * \b
 <span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>ax4.imshow(conved_im,cmap<span class="op">=</span><span class="st">"Greys"</span>,vmin<span class="op">=</span><span class="dv">0</span>,vmax<span class="op">=</span><span class="dv">29</span>), ax4.set_title(<span class="st">"Convolved Image"</span>) <span class="co">#here, I prematurely set vmax to what the maximum of conved_im</span></span>
 <span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>plt.annotate(<span class="st">"only one pixel in"</span>, (<span class="fl">.55</span>,<span class="fl">.4</span>))                                         <span class="co">#will be, otherwise scaling will change as it plots</span></span>
 <span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>plt.annotate(<span class="st">"new image so far"</span>, (<span class="fl">.55</span>,<span class="fl">.6</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="cell-output cell-output-display" data-execution_count="5">
+<div class="cell-output cell-output-display">
 <pre><code>Text(0.55, 0.6, 'new image so far')</code></pre>
 </div>
 <div class="cell-output cell-output-display">
@@ -370,7 +377,7 @@ y = \begin{bmatrix}a&amp;b&amp;c\\d&amp;e&amp;f\\g&amp;h&amp;i\end{bmatrix} * \b
 </div>
 <p>We can see, that because our filter was a row of ones, a row of zeros, then another row of ones, when we apply this filter to our region, the middle row becomes zeros, while the top and bottom rows of the region are unchanged. So, the sum of Filter X Region which creates our new pixel is really just the sum of the top and bottom rows of the region.</p>
 <p>Next, let’s move over one pixel, and do the same thing:</p>
-<div id="cell-23" class="cell" data-outputid="296ffbe8-0d9c-408b-bdc6-b99a032ad28f" data-execution_count="6">
+<div id="cell-25" class="cell">
 <div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>fig <span class="op">=</span> plt.figure(figsize<span class="op">=</span>(<span class="dv">18</span>,<span class="dv">5</span>))</span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>ax1, ax2, ax3, ax4 <span class="op">=</span> fig.subplots(<span class="dv">1</span>,<span class="dv">4</span>)</span>
 <span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>ax1.imshow(im, cmap <span class="op">=</span> <span class="st">"Greys"</span>), ax1.set_title(<span class="st">"Full Image"</span>)</span>
@@ -382,7 +389,7 @@ y = \begin{bmatrix}a&amp;b&amp;c\\d&amp;e&amp;f\\g&amp;h&amp;i\end{bmatrix} * \b
 <span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>conved_im[<span class="dv">0</span>][<span class="dv">1</span>] <span class="op">=</span> np.<span class="bu">sum</span>(im[<span class="dv">0</span>:<span class="dv">3</span>,<span class="dv">1</span>:<span class="dv">4</span>]<span class="op">*</span>a)</span>
 <span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>ax4.imshow(conved_im,cmap<span class="op">=</span><span class="st">"Greys"</span>,vmin<span class="op">=</span><span class="dv">0</span>,vmax<span class="op">=</span><span class="dv">29</span>), ax4.set_title(<span class="st">"Convolved Image"</span>) <span class="co">#here, I prematurely set vmax to what the maximum of conved_im</span></span>
 <span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>plt.annotate(<span class="st">"now, 2 pixels"</span>, (<span class="fl">.95</span>,<span class="fl">.7</span>))                                             <span class="co">#will be, otherwise scaling will change as it plots</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="cell-output cell-output-display" data-execution_count="6">
+<div class="cell-output cell-output-display">
 <pre><code>Text(0.95, 0.7, 'now, 2 pixels')</code></pre>
 </div>
 <div class="cell-output cell-output-display">
@@ -394,7 +401,7 @@ y = \begin{bmatrix}a&amp;b&amp;c\\d&amp;e&amp;f\\g&amp;h&amp;i\end{bmatrix} * \b
 </div>
 </div>
 <p>We can keep moving it over, and filling in the pixels of this “new version” of our image:</p>
-<div id="cell-25" class="cell" data-outputid="ef821185-c872-45ca-b9e9-c0872cad48b1" data-execution_count="7">
+<div id="cell-27" class="cell">
 <div class="sourceCode cell-code" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>fig <span class="op">=</span> plt.figure(figsize<span class="op">=</span>(<span class="dv">18</span>,<span class="dv">5</span>))</span>
 <span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>ax1, ax2, ax3, ax4 <span class="op">=</span> fig.subplots(<span class="dv">1</span>,<span class="dv">4</span>)</span>
 <span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -421,7 +428,7 @@ y = \begin{bmatrix}a&amp;b&amp;c\\d&amp;e&amp;f\\g&amp;h&amp;i\end{bmatrix} * \b
 <span id="cb11-24"><a href="#cb11-24" aria-hidden="true" tabindex="-1"></a>plt.close()</span>
 <span id="cb11-25"><a href="#cb11-25" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb11-26"><a href="#cb11-26" aria-hidden="true" tabindex="-1"></a>HTML(ani.to_html5_video())</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="cell-output cell-output-display" data-execution_count="7">
+<div class="cell-output cell-output-display">
 <video width="1296" height="360" controls="" autoplay="" loop="">
   <source type="video/mp4" src="data:video/mp4;base64,AAAAHGZ0eXBNNFYgAAACAGlzb21pc28yYXZjMQAAAAhmcmVlAABXE21kYXQAAAKtBgX//6ncRem9
 5tlIt5Ys2CDZI+7veDI2NCAtIGNvcmUgMTUyIHIyODU0IGU5YTU5MDMgLSBILjI2NC9NUEVHLTQg
@@ -843,7 +850,7 @@ AAAALWlsc3QAAAAlqXRvbwAAAB1kYXRhAAAAAQAAAABMYXZmNTcuODMuMTAw
 </font></font></ol><font size="2.5"><font size="2.5">
 <p>There are many different choices for padding, each with their own unique advantages, but the most common/universal (and the only one we’ll discuss here) is <strong>valid</strong>, <strong>zero</strong> padding. <strong>Valid</strong> means that we add whatever padding we need in order to keep the image the same size. <strong>Zero</strong> just means that the values we add along the borders are all zeros.</p>
 <p>If we valid zero-pad the image we were just using, we would get:</p>
-<div id="cell-28" class="cell" data-outputid="b553b8ce-e09a-4f21-a1ca-818ee74e5af1" data-execution_count="8">
+<div id="cell-30" class="cell">
 <div class="sourceCode cell-code" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>padded_im <span class="op">=</span> np.pad(im, pad_width <span class="op">=</span> (<span class="dv">1</span>,<span class="dv">1</span>), mode<span class="op">=</span><span class="st">"constant"</span>, constant_values<span class="op">=</span><span class="dv">0</span>)</span>
 <span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="co"># show the image we'll convolve, and the filter we'll convolve it with</span></span>
@@ -851,8 +858,8 @@ AAAALWlsc3QAAAAlqXRvbwAAAB1kYXRhAAAAAQAAAABMYXZmNTcuODMuMTAw
 <span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>ax1, ax2 <span class="op">=</span> fig.add_subplot(<span class="dv">1</span>,<span class="dv">2</span>,<span class="dv">1</span>), fig.add_subplot(<span class="dv">1</span>,<span class="dv">2</span>,<span class="dv">2</span>)</span>
 <span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>ax1.imshow(im, cmap<span class="op">=</span><span class="st">"Greys"</span>), ax1.set_title(<span class="st">"Original Image"</span>)</span>
 <span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>ax2.imshow(padded_im, cmap<span class="op">=</span><span class="st">"Greys"</span>,vmin<span class="op">=</span><span class="dv">0</span>,vmax<span class="op">=</span><span class="dv">6</span>), ax2.set_title(<span class="st">"Padded Image"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="cell-output cell-output-display" data-execution_count="8">
-<pre><code>(&lt;matplotlib.image.AxesImage at 0x7fc3797b1b38&gt;,
+<div class="cell-output cell-output-display">
+<pre><code>(&lt;matplotlib.image.AxesImage&gt;,
  Text(0.5, 1.0, 'Padded Image'))</code></pre>
 </div>
 <div class="cell-output cell-output-display">
@@ -864,7 +871,7 @@ AAAALWlsc3QAAAAlqXRvbwAAAB1kYXRhAAAAAQAAAABMYXZmNTcuODMuMTAw
 </div>
 </div>
 <p>We can see, if we re-do the convolution we did to this image in the last section, now with the padded image, that pixels on the edge of the image are also convolved over, and the image size is preserved:</p>
-<div id="cell-30" class="cell" data-outputid="75ac3abc-4e3e-4b59-8242-e7c6b5689a39" data-execution_count="9">
+<div id="cell-32" class="cell">
 <div class="sourceCode cell-code" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>fig <span class="op">=</span> plt.figure(figsize<span class="op">=</span>(<span class="dv">18</span>,<span class="dv">5</span>))</span>
 <span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>ax1, ax2, ax3, ax4 <span class="op">=</span> fig.subplots(<span class="dv">1</span>,<span class="dv">4</span>)</span>
 <span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -891,7 +898,7 @@ AAAALWlsc3QAAAAlqXRvbwAAAB1kYXRhAAAAAQAAAABMYXZmNTcuODMuMTAw
 <span id="cb14-24"><a href="#cb14-24" aria-hidden="true" tabindex="-1"></a>plt.close()</span>
 <span id="cb14-25"><a href="#cb14-25" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb14-26"><a href="#cb14-26" aria-hidden="true" tabindex="-1"></a>HTML(ani.to_html5_video())</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="cell-output cell-output-display" data-execution_count="9">
+<div class="cell-output cell-output-display">
 <video width="1296" height="360" controls="" autoplay="" loop="">
   <source type="video/mp4" src="data:video/mp4;base64,AAAAHGZ0eXBNNFYgAAACAGlzb21pc28yYXZjMQAAAAhmcmVlAACNyG1kYXQAAAKtBgX//6ncRem9
 5tlIt5Ys2CDZI+7veDI2NCAtIGNvcmUgMTUyIHIyODU0IGU5YTU5MDMgLSBILjI2NC9NUEVHLTQg
@@ -1573,15 +1580,15 @@ y = m_1x_1 + m_2x_2 + m_3x_3 + ... + b
 \end{equation*}\]</span></p>
 <p>And so far, we haven’t added b. We refer to this extra parameter as the <strong>bias</strong>, it’s a single value that get’s added to every pixel of the image after the image has been convolved. You need a bias for sort of the same reason that you need b when you fit a line: because it can act to shift the entire image one way, in a way that otherwise can be impossible given just the values <span class="math inline">\(\times\)</span> weights.</p>
 <p>Beacuse the bias is just a single number added to every pixel, it’s a very simple augmentation of the image:</p>
-<div id="cell-36" class="cell" data-outputid="415f1021-0865-4500-9560-7ca21d07ae7a" data-execution_count="10">
+<div id="cell-38" class="cell">
 <div class="sourceCode cell-code" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>bias <span class="op">=</span> <span class="op">-</span><span class="dv">10</span></span>
 <span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>fig <span class="op">=</span> plt.figure(figsize<span class="op">=</span>(<span class="dv">10</span>,<span class="dv">5</span>))</span>
 <span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>ax1, ax2 <span class="op">=</span> fig.add_subplot(<span class="dv">1</span>,<span class="dv">2</span>,<span class="dv">1</span>), fig.add_subplot(<span class="dv">1</span>,<span class="dv">2</span>,<span class="dv">2</span>)</span>
 <span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>ax1.imshow(conved_im, cmap<span class="op">=</span><span class="st">"Greys"</span>, vmin<span class="op">=-</span><span class="dv">5</span>, vmax<span class="op">=</span><span class="dv">29</span>), ax1.set_title(<span class="st">"Convolved Image"</span>)</span>
 <span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>biased_im <span class="op">=</span> conved_im <span class="op">+</span> bias</span>
 <span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>ax2.imshow(biased_im, cmap<span class="op">=</span><span class="st">"Greys"</span>, vmin<span class="op">=-</span><span class="dv">5</span>, vmax<span class="op">=</span><span class="dv">29</span>), ax2.set_title(<span class="st">"Convolved Image + (b = </span><span class="sc">%d</span><span class="st">)"</span> <span class="op">%</span>bias)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="cell-output cell-output-display" data-execution_count="10">
-<pre><code>(&lt;matplotlib.image.AxesImage at 0x7fc3794cd208&gt;,
+<div class="cell-output cell-output-display">
+<pre><code>(&lt;matplotlib.image.AxesImage&gt;,
  Text(0.5, 1.0, 'Convolved Image + (b = -10)'))</code></pre>
 </div>
 <div class="cell-output cell-output-display">
@@ -1596,15 +1603,15 @@ y = m_1x_1 + m_2x_2 + m_3x_3 + ... + b
 <p>The other step that happens after the convolution step in a convolutional layer is the activation. In the activation step, the image is subject to a function, so each pixel of the image is changed according to that function. In convolutional neural networks, the most common of these functions is ReLU (Rectified Linear Units), which looks like: <span class="math display">\[\begin{equation*}
 ReLU(x) = max(0,x)
 \end{equation*}\]</span> So, when an image is passed through the ReLU activation, each pixel becomes either 0 (if the value was negative) or remains the same (if the value was 0 or positive). An image passed through this activation will look like:</p>
-<div id="cell-39" class="cell" data-outputid="e9c2d595-2799-4f84-cdec-6ddd2092d9ec" data-execution_count="11">
+<div id="cell-41" class="cell">
 <div class="sourceCode cell-code" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>fig <span class="op">=</span> plt.figure(figsize<span class="op">=</span>(<span class="dv">15</span>,<span class="dv">5</span>))</span>
 <span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>ax1, ax2, ax3 <span class="op">=</span> fig.add_subplot(<span class="dv">1</span>,<span class="dv">3</span>,<span class="dv">1</span>), fig.add_subplot(<span class="dv">1</span>,<span class="dv">3</span>,<span class="dv">2</span>), fig.add_subplot(<span class="dv">1</span>,<span class="dv">3</span>,<span class="dv">3</span>)</span>
 <span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>ax1.imshow(conved_im, cmap<span class="op">=</span><span class="st">"Greys"</span>, vmin<span class="op">=-</span><span class="dv">5</span>, vmax<span class="op">=</span><span class="dv">29</span>), ax1.set_title(<span class="st">"Convolved Image"</span>)</span>
 <span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>ax2.imshow(biased_im, cmap<span class="op">=</span><span class="st">"Greys"</span>, vmin<span class="op">=-</span><span class="dv">5</span>, vmax<span class="op">=</span><span class="dv">29</span>), ax2.set_title(<span class="st">"Biased Image"</span>)</span>
 <span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>relu_im <span class="op">=</span> np.maximum(<span class="dv">0</span>,biased_im)</span>
 <span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>ax3.imshow(relu_im, cmap<span class="op">=</span><span class="st">"Greys"</span>, vmin<span class="op">=</span><span class="dv">0</span>, vmax<span class="op">=</span><span class="dv">29</span>), ax3.set_title(<span class="st">"Relu-ed Image"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="cell-output cell-output-display" data-execution_count="11">
-<pre><code>(&lt;matplotlib.image.AxesImage at 0x7fc37937b588&gt;,
+<div class="cell-output cell-output-display">
+<pre><code>(&lt;matplotlib.image.AxesImage&gt;,
  Text(0.5, 1.0, 'Relu-ed Image'))</code></pre>
 </div>
 <div class="cell-output cell-output-display">
@@ -1625,7 +1632,7 @@ ReLU(x) = max(0,x)
 <p>The point, really, of a UNet, is to learn the weights of the filters, and the biases, that transform an image and allow us to augment that image into another image. So, we may want to attempt to look at the filters and determine the ways that it might be transforming our image and helping to learn patterns.</p>
 <p><a id="2.1"></a> <strong><font size="4"> 2.1 The Horizontal Edge Detector</font></strong></p>
 <p>Some filters, such as the <strong>horizontal edge detector</strong> are fairly easily intepretable in the ways that they tranform an image. We’ll take a look at the horizontal edge detector below.</p>
-<div id="cell-43" class="cell" data-outputid="c1e87196-d349-45fa-c7b3-fb03e7de3985" data-execution_count="12">
+<div id="cell-45" class="cell">
 <div class="sourceCode cell-code" id="cb19"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a>horiz_edge_filter <span class="op">=</span> np.array([[ <span class="dv">1</span>,  <span class="dv">2</span>,  <span class="dv">1</span>],</span>
 <span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>                              [ <span class="dv">0</span>,  <span class="dv">0</span>,  <span class="dv">0</span>],</span>
 <span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>                              [<span class="op">-</span><span class="dv">1</span>, <span class="op">-</span><span class="dv">2</span>, <span class="op">-</span><span class="dv">1</span>]])</span>
@@ -1640,7 +1647,7 @@ ReLU(x) = max(0,x)
 </div>
 </div>
 <p>This filter is comprised of: a row of positive values, a row of zero values, and a row of negative values. It may not be immediately obvious how this can pick out horizontal edges, but consider the case of an image with a very simple horizontal edge:</p>
-<div id="cell-45" class="cell" data-outputid="fa7ab0cf-a9eb-43bb-fda7-74b3539429dc" data-execution_count="13">
+<div id="cell-47" class="cell">
 <div class="sourceCode cell-code" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a>horiz_edge_im <span class="op">=</span> np.array([[ <span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">1</span>],</span>
 <span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>                          [ <span class="dv">0</span>, <span class="dv">0</span>, <span class="dv">0</span>],</span>
 <span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>                          [ <span class="op">-</span><span class="dv">1</span>, <span class="op">-</span><span class="dv">1</span>, <span class="op">-</span><span class="dv">1</span>]])</span>
@@ -1655,7 +1662,7 @@ ReLU(x) = max(0,x)
 </div>
 </div>
 <p>If we convolve this image with this filter (that is, take the sum of the element-wise products of these two 3x3 matricies) we will get a single number:</p>
-<div id="cell-47" class="cell" data-outputid="49985f7d-d576-44ee-9249-a660a3a9aea4" data-execution_count="14">
+<div id="cell-49" class="cell">
 <div class="sourceCode cell-code" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a>conved_val <span class="op">=</span> np.<span class="bu">sum</span>(horiz_edge_filter<span class="op">*</span>horiz_edge_im)</span>
 <span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"The new pixel value would be:"</span>, conved_val)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
@@ -1663,7 +1670,7 @@ ReLU(x) = max(0,x)
 </div>
 </div>
 <p>If instead, this image had been of a vertical edge. Then, when we check what value the convolution gives us, we intead get:</p>
-<div id="cell-49" class="cell" data-outputid="dbaaaa70-2858-4285-f526-583df4d01d84" data-execution_count="15">
+<div id="cell-51" class="cell">
 <div class="sourceCode cell-code" id="cb23"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a>vert_edge_im <span class="op">=</span> np.array([[ <span class="dv">1</span>, <span class="dv">0</span>, <span class="op">-</span><span class="dv">1</span>],</span>
 <span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>                         [ <span class="dv">1</span>, <span class="dv">0</span>, <span class="op">-</span><span class="dv">1</span>],</span>
 <span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>                         [ <span class="dv">1</span>, <span class="dv">0</span>, <span class="op">-</span><span class="dv">1</span>]])</span>
@@ -1695,7 +1702,7 @@ ReLU(x) = max(0,x)
 <li>It’s horizontally symmetric, and</li>
 <li>Every element-wise multiplication includes a zero.</li>
 </ul>
-<div id="cell-52" class="cell" data-outputid="cfc113c3-0c93-4b7d-dfa7-c4a5f035b557" data-execution_count="16">
+<div id="cell-54" class="cell">
 <div class="sourceCode cell-code" id="cb25"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a>horiz_edge_im <span class="op">=</span> np.array([[ <span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">1</span>],</span>
 <span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a>                          [ <span class="dv">0</span>, <span class="dv">0</span>, <span class="dv">0</span>],</span>
 <span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a>                          [ <span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">1</span>]])</span>
@@ -1711,7 +1718,7 @@ ReLU(x) = max(0,x)
 </div>
 <p>But, in practice, we apply these filters over a larger image, not over an image of matching size, so we’ll see that single-pixel edges are still detected by this filter, <em>just not when the edge is on the center pixel.</em></p>
 <p>Let’s start by loading in an image with some edges, which we’ll pass our horizontal edge detector over.</p>
-<div id="cell-54" class="cell" data-outputid="f7c7026f-c7d1-472d-8b34-5a84758db535" data-execution_count="17">
+<div id="cell-56" class="cell">
 <div class="sourceCode cell-code" id="cb26"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> PIL <span class="im">import</span> Image</span>
 <span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a>im <span class="op">=</span> np.array(Image.<span class="bu">open</span>(<span class="st">'filepath/images/horiz_im.png'</span>))[:,:,<span class="dv">2</span>]</span>
 <span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>im <span class="op">=</span> im<span class="op">/</span><span class="dv">255</span></span>
@@ -1732,7 +1739,7 @@ ReLU(x) = max(0,x)
 </div>
 <p>Now, if we convolve with our filter like we did in Part 1:</p>
 <p><font size="2">**note, this code may take a little time to run*</font></p><font size="2">
-<div id="cell-56" class="cell" data-outputid="d28383b0-3010-4c10-b807-b483d90834a0" data-execution_count="18">
+<div id="cell-58" class="cell">
 <div class="sourceCode cell-code" id="cb27"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a>fig <span class="op">=</span> plt.figure()</span>
 <span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a><span class="co"># first, get the filter sizes which will help us later</span></span>
@@ -1757,7 +1764,7 @@ ReLU(x) = max(0,x)
 <span id="cb27-22"><a href="#cb27-22" aria-hidden="true" tabindex="-1"></a>plt.close()</span>
 <span id="cb27-23"><a href="#cb27-23" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb27-24"><a href="#cb27-24" aria-hidden="true" tabindex="-1"></a>HTML(ani.to_html5_video())</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="cell-output cell-output-display" data-execution_count="18">
+<div class="cell-output cell-output-display">
 <video width="432" height="288" controls="" autoplay="" loop="">
   <source type="video/mp4" src="data:video/mp4;base64,AAAAHGZ0eXBNNFYgAAACAGlzb21pc28yYXZjMQAAAAhmcmVlAAEgs21kYXQAAAKuBgX//6rcRem9
 5tlIt5Ys2CDZI+7veDI2NCAtIGNvcmUgMTUyIHIyODU0IGU5YTU5MDMgLSBILjI2NC9NUEVHLTQg
@@ -3315,7 +3322,7 @@ AB1kYXRhAAAAAQAAAABMYXZmNTcuODMuMTAw
 <p>Now that we have some foundations about the convolutions that a UNet uses to learn how to transform an image, we’ll take a closer look at architecture of a UNet which makes this possible.</p>
 <p><a id="3.1"></a> <strong><font size="4"> 3.1 The UNet Structure</font></strong></p><font size="4">
 <p>The basic structure of a UNet looks like this:</p>
-<div id="cell-62" class="cell" data-outputid="8a9a5246-dd87-4014-d2ca-58e64746cda2" data-execution_count="19">
+<div id="cell-64" class="cell">
 <div class="sourceCode cell-code" id="cb28"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a>display(Im(<span class="st">'</span><span class="sc">%s</span><span class="st">/images/UNet_Structure.png'</span> <span class="op">%</span>filepath, width<span class="op">=</span><span class="dv">650</span>, height<span class="op">=</span><span class="dv">400</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-display">
 <div>
@@ -3337,7 +3344,7 @@ AB1kYXRhAAAAAQAAAABMYXZmNTcuODMuMTAw
 <p>You can use a filter to convolve an image. But usually in a convolutional network, we want to use many filters to convolve an image, because each filter is learning something different about the image. Additionally, we usually perform multiple convolutions in a row of the same number of filters/shape of filter, in what’s often called a <strong>convolutional block</strong>. Here, we might convolve our image with 5 3x3 filters, then take the result of that convolution, and convolve it with another 5 3x3 filters.</p>
 <p>So what exactly is the output of a convolution, and what do we do when we have 5 of them?</p>
 <p>If we start with an image, say 8x8, and we convolve it with a 3x3 filter, then provided that we valid padded it first, we get out a 8x8 image which is some version of the original:</p>
-<div id="cell-67" class="cell" data-outputid="591de8ea-9408-441e-aefa-b97ba8a59998" data-execution_count="20">
+<div id="cell-69" class="cell">
 <div class="sourceCode cell-code" id="cb29"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a>im <span class="op">=</span> np.array([[<span class="dv">0</span>,<span class="dv">1</span>,<span class="dv">1</span>,<span class="dv">2</span>,<span class="dv">4</span>,<span class="dv">4</span>,<span class="dv">3</span>,<span class="dv">2</span>,<span class="dv">2</span>],  <span class="co"># the region of pixels</span></span>
 <span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a>               [<span class="dv">4</span>,<span class="dv">3</span>,<span class="dv">2</span>,<span class="dv">4</span>,<span class="dv">5</span>,<span class="dv">5</span>,<span class="dv">4</span>,<span class="dv">3</span>,<span class="dv">1</span>],</span>
 <span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a>               [<span class="dv">0</span>,<span class="dv">1</span>,<span class="dv">1</span>,<span class="dv">4</span>,<span class="dv">5</span>,<span class="dv">4</span>,<span class="dv">3</span>,<span class="dv">2</span>,<span class="dv">2</span>],</span>
@@ -3360,8 +3367,8 @@ AB1kYXRhAAAAAQAAAABMYXZmNTcuODMuMTAw
 <span id="cb29-20"><a href="#cb29-20" aria-hidden="true" tabindex="-1"></a>ax1.imshow(im, cmap<span class="op">=</span><span class="st">'Greys'</span>), ax1.set_title(<span class="st">'Original Image'</span>)</span>
 <span id="cb29-21"><a href="#cb29-21" aria-hidden="true" tabindex="-1"></a>ax2.imshow(filt1, cmap<span class="op">=</span><span class="st">'Greys'</span>), ax2.set_title(<span class="st">'Filter'</span>)</span>
 <span id="cb29-22"><a href="#cb29-22" aria-hidden="true" tabindex="-1"></a>ax3.imshow(conv_im1, cmap<span class="op">=</span><span class="st">'Greys'</span>), ax3.set_title(<span class="st">'Convolved Image'</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="cell-output cell-output-display" data-execution_count="20">
-<pre><code>(&lt;matplotlib.image.AxesImage at 0x7fc37706fb70&gt;,
+<div class="cell-output cell-output-display">
+<pre><code>(&lt;matplotlib.image.AxesImage&gt;,
  Text(0.5, 1.0, 'Convolved Image'))</code></pre>
 </div>
 <div class="cell-output cell-output-display">
@@ -3373,7 +3380,7 @@ AB1kYXRhAAAAAQAAAABMYXZmNTcuODMuMTAw
 </div>
 </div>
 <p>If we have a second filter, then we have another version of the image which was convolved with that filter:</p>
-<div id="cell-69" class="cell" data-outputid="0f7dbcf9-97a8-4a67-9be3-8c52a834d576" data-execution_count="21">
+<div id="cell-71" class="cell">
 <div class="sourceCode cell-code" id="cb31"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a>filt2 <span class="op">=</span> np.array([[<span class="dv">1</span>,<span class="dv">2</span>,<span class="dv">1</span>],  <span class="co"># another filter I made up</span></span>
 <span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a>                  [<span class="dv">2</span>,<span class="dv">3</span>,<span class="dv">2</span>],</span>
 <span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a>                  [<span class="dv">1</span>,<span class="dv">2</span>,<span class="dv">1</span>]])</span>
@@ -3385,8 +3392,8 @@ AB1kYXRhAAAAAQAAAABMYXZmNTcuODMuMTAw
 <span id="cb31-9"><a href="#cb31-9" aria-hidden="true" tabindex="-1"></a>ax1.imshow(im, cmap<span class="op">=</span><span class="st">'Greys'</span>), ax1.set_title(<span class="st">'Original Image'</span>)</span>
 <span id="cb31-10"><a href="#cb31-10" aria-hidden="true" tabindex="-1"></a>ax2.imshow(filt2, cmap<span class="op">=</span><span class="st">'Greys'</span>), ax2.set_title(<span class="st">'Filter #2'</span>)</span>
 <span id="cb31-11"><a href="#cb31-11" aria-hidden="true" tabindex="-1"></a>ax3.imshow(conv_im2, cmap<span class="op">=</span><span class="st">'Greys'</span>), ax3.set_title(<span class="st">'Convolved Image #2'</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="cell-output cell-output-display" data-execution_count="21">
-<pre><code>(&lt;matplotlib.image.AxesImage at 0x7fc376f7ab70&gt;,
+<div class="cell-output cell-output-display">
+<pre><code>(&lt;matplotlib.image.AxesImage&gt;,
  Text(0.5, 1.0, 'Convolved Image #2'))</code></pre>
 </div>
 <div class="cell-output cell-output-display">
@@ -3398,7 +3405,7 @@ AB1kYXRhAAAAAQAAAABMYXZmNTcuODMuMTAw
 </div>
 </div>
 <p>If we have 5 such filters, then we have 5 unique “versions” of the original image:</p>
-<div id="cell-71" class="cell" data-outputid="40fb32e6-d697-478e-bcac-94e58fca5734" data-execution_count="22">
+<div id="cell-73" class="cell">
 <div class="sourceCode cell-code" id="cb33"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a>filt3 <span class="op">=</span> np.array([[<span class="dv">1</span>,<span class="dv">2</span>,<span class="dv">1</span>], [<span class="dv">0</span>,<span class="dv">0</span>,<span class="dv">0</span>], [<span class="op">-</span><span class="dv">1</span>,<span class="op">-</span><span class="dv">2</span>,<span class="op">-</span><span class="dv">1</span>]])    <span class="co"># more filter that I made up, not necessarily</span></span>
 <span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a>filt4 <span class="op">=</span> np.array([[<span class="dv">0</span>,<span class="dv">1</span>,<span class="dv">0</span>], [<span class="dv">2</span>,<span class="dv">3</span>,<span class="dv">2</span>], [<span class="op">-</span><span class="dv">1</span>,<span class="op">-</span><span class="dv">2</span>,<span class="op">-</span><span class="dv">1</span>]])    <span class="co"># ones that should do anything interesting</span></span>
 <span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a>filt5 <span class="op">=</span> np.array([[<span class="op">-</span><span class="dv">1</span>,<span class="op">-</span><span class="dv">2</span>,<span class="op">-</span><span class="dv">1</span>], [<span class="dv">0</span>,<span class="dv">0</span>,<span class="dv">0</span>], [<span class="dv">1</span>,<span class="dv">2</span>,<span class="dv">1</span>]])</span>
@@ -3414,8 +3421,8 @@ AB1kYXRhAAAAAQAAAABMYXZmNTcuODMuMTAw
 <span id="cb33-13"><a href="#cb33-13" aria-hidden="true" tabindex="-1"></a>ax3.imshow(conv_im3, cmap<span class="op">=</span><span class="st">'Greys'</span>), ax3.set_title(<span class="st">'Convolved Image #3'</span>)</span>
 <span id="cb33-14"><a href="#cb33-14" aria-hidden="true" tabindex="-1"></a>ax4.imshow(conv_im4, cmap<span class="op">=</span><span class="st">'Greys'</span>), ax4.set_title(<span class="st">'Convolved Image #4'</span>)</span>
 <span id="cb33-15"><a href="#cb33-15" aria-hidden="true" tabindex="-1"></a>ax5.imshow(conv_im5, cmap<span class="op">=</span><span class="st">'Greys'</span>), ax5.set_title(<span class="st">'Convolved Image #5'</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="cell-output cell-output-display" data-execution_count="22">
-<pre><code>(&lt;matplotlib.image.AxesImage at 0x7fc376df9be0&gt;,
+<div class="cell-output cell-output-display">
+<pre><code>(&lt;matplotlib.image.AxesImage&gt;,
  Text(0.5, 1.0, 'Convolved Image #5'))</code></pre>
 </div>
 <div class="cell-output cell-output-display">
@@ -3429,7 +3436,7 @@ AB1kYXRhAAAAAQAAAABMYXZmNTcuODMuMTAw
 <p>Now, we have 5 representations of our original image, each with some unique features that were emphasized or de-emphasized because of the filter that created them. So, we want a way to keep all of this information that our filters gave us. But, we also want a way to be able to associate these versions of the image with one another. The dark pixels in the bottom right of all of these convolved images above, for example, are all some representation of the dark region in the lower right of our starting image. That is, the bottom right regions of our convolved images still correspond to and give us information about the bottom right region of our original image.</p>
 <p>So, what we do is <em>stack</em> the images so that each one becomes a <strong>channel</strong> of one complete image. These channels are just like the RGB channels you might be used to in normal color images: each one contains some information about the image, and each matching pixel across different channels is telling you something about the same region of the image. That’s exactly what our convolved images are doing - they’re each telling us different pieces of information about the same regions of the original image.</p>
 <p>When we stack these convolved images into channels, we increase the depth of the image: our <strong>8x8x(1 channel)</strong> original image is now an <strong>8x8x(5 channel)</strong> image.</p>
-<div id="cell-74" class="cell" data-outputid="a99b18a5-ec41-41fe-fba1-ee4c5394b8d6" data-execution_count="17">
+<div id="cell-76" class="cell">
 <div class="sourceCode cell-code" id="cb35"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a>display(Im(<span class="st">'</span><span class="sc">%s</span><span class="st">/images/operation_examples/conv_example_im1.png'</span> <span class="op">%</span>filepath, height<span class="op">=</span><span class="dv">370</span>, width<span class="op">=</span><span class="dv">370</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-display">
 <div>
@@ -3444,7 +3451,7 @@ AB1kYXRhAAAAAQAAAABMYXZmNTcuODMuMTAw
 <p><font size="2"><strong>Note:</strong> I keep making this distinction that these third dimensions are <em>channels</em>. That’s because it’s an important distinction: convolutions can happen in 3D, too, so a 3x3x5 filter (not a 3x3x(5 channel)) filter actually would, in general, be a somewhat different operation, which I’ll point out and talk about more in a little bit. This is why we would still refer to the second set of filters in this convolution block as 3x3 filters, instead of specifying that they have 5 channels. The number of channels is implied by the network architecture; if we were to call them 3x3x5 filters it would sound like we are doing 3D convolutions.</font></p><font size="2">
 <p>When we convolve a multi-channel image with a multi-channel filter (always with the matching number of channels as the image), what we are effectively doing is convolving each channel of our image with its own filter, and then adding the results togeher. So, in the second part of our convolution block, where we have 3, 3x3x(5 channel) filters, it’s really like each filter gives us 5 versions of our image.</p>
 <p>Let’s look at what <strong>one</strong> of the filters is doing:</p>
-<div id="cell-77" class="cell" data-outputid="8fcb9c6a-5506-47a0-ad16-9c2e9e569894" data-execution_count="24">
+<div id="cell-79" class="cell">
 <div class="sourceCode cell-code" id="cb36"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a>fig <span class="op">=</span> plt.figure(figsize<span class="op">=</span>(<span class="dv">18</span>,<span class="dv">5</span>))</span>
 <span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a>ax1, ax2, ax3, ax4, ax5 <span class="op">=</span> fig.subplots(<span class="dv">1</span>,<span class="dv">5</span>)</span>
 <span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a>ax1.imshow(conv_im1, cmap<span class="op">=</span><span class="st">'Greys'</span>), ax1.set_title(<span class="st">'Image Channel #1'</span>), ax1.axis(<span class="st">'off'</span>)</span>
@@ -3480,8 +3487,8 @@ AB1kYXRhAAAAAQAAAABMYXZmNTcuODMuMTAw
 <span id="cb36-33"><a href="#cb36-33" aria-hidden="true" tabindex="-1"></a>ax4.imshow(filt1_ch4_convIm, cmap<span class="op">=</span><span class="st">'Greys'</span>), ax4.axis(<span class="st">'off'</span>), ax4.set_title(<span class="st">'Convolved Image Channel #4'</span>)</span>
 <span id="cb36-34"><a href="#cb36-34" aria-hidden="true" tabindex="-1"></a>filt1_ch5_convIm <span class="op">=</span> convolve(conv_im5, filt1_ch5, mode <span class="op">=</span> <span class="st">'constant'</span>)</span>
 <span id="cb36-35"><a href="#cb36-35" aria-hidden="true" tabindex="-1"></a>ax5.imshow(filt1_ch5_convIm, cmap<span class="op">=</span><span class="st">'Greys'</span>), ax5.axis(<span class="st">'off'</span>), ax5.set_title(<span class="st">'Convolved Image Channel #5'</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="cell-output cell-output-display" data-execution_count="24">
-<pre><code>(&lt;matplotlib.image.AxesImage at 0x7fc376a6a240&gt;,
+<div class="cell-output cell-output-display">
+<pre><code>(&lt;matplotlib.image.AxesImage&gt;,
  (-0.5, 8.5, 8.5, -0.5),
  Text(0.5, 1.0, 'Convolved Image Channel #5'))</code></pre>
 </div>
@@ -3510,7 +3517,7 @@ AB1kYXRhAAAAAQAAAABMYXZmNTcuODMuMTAw
 <p>So, we start with a 5-channel image, we convolve each channel with the corresponding filter of a 5-channel filter, and we get out 5 images.</p>
 <p>If we have 3 of such filters, that would give us 3 (filters) x 5(channels) = 15 versions of our image. You might expect that we would stack all of these again, and end up with a 8x8x15 output from this convolution, <em>but that’s not the case</em>.</p>
 <p>Although we <strong>stack</strong> the outputs of our filters into channels, we actually <strong>add</strong> the channels of an image after it’s convolved. So really, the output of our first convolution, using Filter #1, a 3x3x(5 channel) filter on our 8x8x(5 channel) image is:</p>
-<div id="cell-79" class="cell" data-outputid="c43b2d51-a62b-40cd-85b2-d2644a0aeca3" data-execution_count="25">
+<div id="cell-81" class="cell">
 <div class="sourceCode cell-code" id="cb38"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a>filt1_convOutput <span class="op">=</span> filt1_ch1_convIm <span class="op">+</span> filt1_ch2_convIm <span class="op">+</span> filt1_ch3_convIm <span class="op">+</span> filt1_ch4_convIm <span class="op">+</span> filt1_ch5_convIm</span>
 <span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb38-3"><a href="#cb38-3" aria-hidden="true" tabindex="-1"></a>plt.imshow(filt1_convOutput, cmap<span class="op">=</span><span class="st">"Greys"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -3535,7 +3542,7 @@ AB1kYXRhAAAAAQAAAABMYXZmNTcuODMuMTAw
 </ul>
 <p><a id="3.2.1"></a> <strong><font size="4"> 3.2.1 <em>Some follow up on that note about 3D convolutions</em></font></strong></p>
 <p>3D convolutions are convolutions over volumes. A 3x3x3 filter over a volume performs a similar operation as a 3x3 filter over a 2D image, in that the weights of the filter are multipled by a region of the image, then summed together to get one pixel value. The only real difference, is that a 3D filter on a 3D volume also strides over the volume dimension, instead of just across the image in the 2D dimensions.</p>
-<div id="cell-84" class="cell" data-outputid="1197ddf4-f369-4f96-b365-8400afe492c6" data-execution_count="18">
+<div id="cell-86" class="cell">
 <div class="sourceCode cell-code" id="cb39"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a>display(Im(<span class="st">'</span><span class="sc">%s</span><span class="st">/images/operation_examples/3D_vs_2D_convs.png'</span> <span class="op">%</span>filepath, height<span class="op">=</span><span class="dv">400</span>, width<span class="op">=</span><span class="dv">850</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-display">
 <div>
@@ -3547,7 +3554,7 @@ AB1kYXRhAAAAAQAAAABMYXZmNTcuODMuMTAw
 </div>
 <p>Thus, a 3D convolution over a volume will usually also produce a volume: the original image will usually be padded in all dimensions, so that as the filter slides over all dimensions of the image, multiplying the weights and adding them together, the output volume has the same dimensions as an input volume.</p>
 <p>In principle, our 3x3x(5 channel) filters are acting the same on an 8x8x(5 channel) image as a 3x3x5 3D filter would act on an 8x8x5 3D volume, in that we are mutiplying the weights by the pixel values and adding the results together to get one pixel value.</p>
-<div id="cell-87" class="cell" data-outputid="d02a51d3-3585-4e8a-8d3c-14b6d9d13db8" data-execution_count="19">
+<div id="cell-89" class="cell">
 <div class="sourceCode cell-code" id="cb40"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a>display(Im(<span class="st">'</span><span class="sc">%s</span><span class="st">/images/operation_examples/3D_vs_2DMultiChannel_convs.png'</span> <span class="op">%</span>filepath, height<span class="op">=</span><span class="dv">400</span>, width<span class="op">=</span><span class="dv">850</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-display">
 <div>
@@ -3562,7 +3569,7 @@ AB1kYXRhAAAAAQAAAABMYXZmNTcuODMuMTAw
 <p><a id="3.3"></a> <strong><font size="4"> 3.3 Pooling</font></strong></p>
 <p>The basic idea behind pooling is to reduce the dimensionality of an image, by representing some region of pixels with just one pixel instead.</p>
 <p><strong>Max pooling</strong> is the most common type of pooling, and the type that we will use in our examples in this tutorial. In max pooling, a region of pixels is represented by the maximum-valued pixel within that region. So, we would represent a region of pixels like this one:</p>
-<div id="cell-91" class="cell" data-outputid="97119ae1-70e4-47dd-9d99-431406b65f64" data-execution_count="28">
+<div id="cell-93" class="cell">
 <div class="sourceCode cell-code" id="cb41"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a>im <span class="op">=</span> np.array([[<span class="dv">5</span>,<span class="dv">2</span>],  <span class="co"># the region of pixels</span></span>
 <span id="cb41-2"><a href="#cb41-2" aria-hidden="true" tabindex="-1"></a>               [<span class="dv">8</span>,<span class="dv">3</span>]])</span>
 <span id="cb41-3"><a href="#cb41-3" aria-hidden="true" tabindex="-1"></a>im_max <span class="op">=</span> np.<span class="bu">max</span>(im)    <span class="co"># what pooling would give us</span></span>
@@ -3592,7 +3599,7 @@ AB1kYXRhAAAAAQAAAABMYXZmNTcuODMuMTAw
 </div>
 <p>This would be <strong>2x2</strong> max pooling, because the region of pixels that we replace with a single pixel is size 2x2. We can arbitrarily choose the region size that we use for pooling, but this region is almost always square, and 2x2 is a very typical choice.</p>
 <p>2x2 max pooling an entire image involves taking every 2x2 region in the image and replacing it like so:</p>
-<div id="cell-94" class="cell" data-outputid="605e56fa-2f2d-4072-e97e-37e5af927bae" data-execution_count="29">
+<div id="cell-96" class="cell">
 <div class="sourceCode cell-code" id="cb42"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true" tabindex="-1"></a>im <span class="op">=</span> np.array([[<span class="dv">0</span>,<span class="dv">3</span>,<span class="dv">6</span>,<span class="dv">2</span>,<span class="dv">1</span>,<span class="dv">2</span>],</span>
 <span id="cb42-2"><a href="#cb42-2" aria-hidden="true" tabindex="-1"></a>               [<span class="dv">2</span>,<span class="dv">5</span>,<span class="dv">6</span>,<span class="dv">3</span>,<span class="dv">1</span>,<span class="dv">1</span>],</span>
 <span id="cb42-3"><a href="#cb42-3" aria-hidden="true" tabindex="-1"></a>               [<span class="dv">1</span>,<span class="dv">2</span>,<span class="dv">0</span>,<span class="dv">0</span>,<span class="dv">3</span>,<span class="dv">1</span>],</span>
@@ -3627,7 +3634,7 @@ AB1kYXRhAAAAAQAAAABMYXZmNTcuODMuMTAw
 <span id="cb42-32"><a href="#cb42-32" aria-hidden="true" tabindex="-1"></a>plt.close()</span>
 <span id="cb42-33"><a href="#cb42-33" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb42-34"><a href="#cb42-34" aria-hidden="true" tabindex="-1"></a>HTML(ani.to_html5_video())</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="cell-output cell-output-display" data-execution_count="29">
+<div class="cell-output cell-output-display">
 <video width="720" height="360" controls="" autoplay="" loop="">
   <source type="video/mp4" src="data:video/mp4;base64,AAAAHGZ0eXBNNFYgAAACAGlzb21pc28yYXZjMQAAAAhmcmVlAAAnhm1kYXQAAAKtBgX//6ncRem9
 5tlIt5Ys2CDZI+7veDI2NCAtIGNvcmUgMTUyIHIyODU0IGU5YTU5MDMgLSBILjI2NC9NUEVHLTQg
@@ -3832,7 +3839,7 @@ YXZmNTcuODMuMTAw
 <p>You might be wondering: what’s the advantage of throwing away information? 1. <font size="2.5"> Computationally, it’s advantageous to remove some information, especially if we can still retain the “most important” information when we do so. In convolutional neural networks in particular, the number of operations we need to perform scales with the size of the image as we convolve it, so reducing the image size can greatly reduce the number of computations we need to do. 2. <font size="2.5"> Pooling may help to “sharpen” certain features in the image. Because filters are sort of trying to pick out specific features in an image, choosing the pixel that gave the highest “signal” in a region of an image may help to single out the most important parts of that image.</font></font></p><font size="2.5"><font size="2.5">
 <p><a id="3.4"></a> <strong><font size="4"> 3.4 Upsampling</font></strong></p>
 <p>Upsampling is unique to UNets - the step is performed because we need to increase the size of our image after a series of convolutions and pooling has decreased it. In this way, it’s like the opposite of pooling - instead of shrinking an image by representing a region of pixels with one pixel, we create a region of pixels by copying one pixel into multiple pixels.</p>
-<div id="cell-97" class="cell" data-outputid="957e2f35-9ebe-4ba3-b11d-a62c4813ee11" data-execution_count="30">
+<div id="cell-99" class="cell">
 <div class="sourceCode cell-code" id="cb43"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a>im <span class="op">=</span> np.array([[<span class="dv">1</span>,<span class="dv">3</span>,<span class="dv">6</span>],</span>
 <span id="cb43-2"><a href="#cb43-2" aria-hidden="true" tabindex="-1"></a>               [<span class="dv">2</span>,<span class="dv">5</span>,<span class="dv">6</span>],</span>
 <span id="cb43-3"><a href="#cb43-3" aria-hidden="true" tabindex="-1"></a>               [<span class="dv">2</span>,<span class="dv">4</span>,<span class="dv">3</span>]])</span>
@@ -3864,7 +3871,7 @@ YXZmNTcuODMuMTAw
 <span id="cb43-29"><a href="#cb43-29" aria-hidden="true" tabindex="-1"></a>plt.close()</span>
 <span id="cb43-30"><a href="#cb43-30" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb43-31"><a href="#cb43-31" aria-hidden="true" tabindex="-1"></a>HTML(ani.to_html5_video())</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="cell-output cell-output-display" data-execution_count="30">
+<div class="cell-output cell-output-display">
 <video width="720" height="360" controls="" autoplay="" loop="">
   <source type="video/mp4" src="data:video/mp4;base64,AAAAHGZ0eXBNNFYgAAACAGlzb21pc28yYXZjMQAAAAhmcmVlAABCNW1kYXQAAAKtBgX//6ncRem9
 5tlIt5Ys2CDZI+7veDI2NCAtIGNvcmUgMTUyIHIyODU0IGU5YTU5MDMgLSBILjI2NC9NUEVHLTQg
@@ -4197,7 +4204,7 @@ AAAAAExhdmY1Ny44My4xMDA=
 <p>If we were to simple upsample and convolve our image back up to its original size, there would be no way to get that information back, because upsampling just copies the same pixels over again - it doesn’t increase the resolution of the details. For this reason, we need to do <strong>concatenations</strong>.</p>
 <p>In the concatenation step, we take the output of a previous layer in the downsizing portion of the UNet, and stack it with the output from the upsizing portion of the UNet that has the same dimensions. In this way, we get to use the finer resolution information that the downsizing steps still had, but we also get our larger scale information from our upsampling step.</p>
 <p>For instance, let’s say in the second convolutonal block of a UNet, we convolve our image with 3 filters, so we have an output that looks like this:</p>
-<div id="cell-101" class="cell" data-outputid="cdeca622-ddf2-4ac6-c43a-b2ba98c79406" data-execution_count="11">
+<div id="cell-103" class="cell">
 <div class="sourceCode cell-code" id="cb44"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb44-1"><a href="#cb44-1" aria-hidden="true" tabindex="-1"></a>display(Im(<span class="st">'</span><span class="sc">%s</span><span class="st">/images/operation_examples/concat_example_im1.png'</span> <span class="op">%</span>filepath, height<span class="op">=</span><span class="dv">370</span>, width<span class="op">=</span><span class="dv">370</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-display">
 <div>
@@ -4209,7 +4216,7 @@ AAAAAExhdmY1Ny44My4xMDA=
 </div>
 <p>Then, let’s say that in the next steps in the UNet, this image is pooled down to size 4x4x3, and more convolutions are done on the image, keeping it at size 4x4x3 but further transforming it.</p>
 <p>If after these convolutions, we begin the upsizing portion of the UNet, we would begin with an operation which upsamples the 4x4x3 image back into an 8x8x3 image, which looks like:</p>
-<div id="cell-103" class="cell" data-outputid="3e1a851c-b1ba-4919-a191-98fabf27079a" data-execution_count="12">
+<div id="cell-105" class="cell">
 <div class="sourceCode cell-code" id="cb45"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb45-1"><a href="#cb45-1" aria-hidden="true" tabindex="-1"></a>display(Im(<span class="st">'</span><span class="sc">%s</span><span class="st">/images/operation_examples/concat_example_im2.png'</span> <span class="op">%</span>filepath, height<span class="op">=</span><span class="dv">370</span>, width<span class="op">=</span><span class="dv">370</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-display">
 <div>
@@ -4220,7 +4227,7 @@ AAAAAExhdmY1Ny44My4xMDA=
 </div>
 </div>
 <p>In the concatenation step of the UNet, these two 8x8x3 images are stacked, so the image becomes 8x8x6. Then, this stacked image would go on to be convolved further, with the 6 stacked images all acting as different channels of the same image.</p>
-<div id="cell-105" class="cell" data-outputid="4ae418db-d150-41a1-c003-2425f4624d62" data-execution_count="16">
+<div id="cell-107" class="cell">
 <div class="sourceCode cell-code" id="cb46"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb46-1"><a href="#cb46-1" aria-hidden="true" tabindex="-1"></a>display(Im(<span class="st">'</span><span class="sc">%s</span><span class="st">/images/operation_examples/concat_example_im3.png'</span> <span class="op">%</span>filepath, height<span class="op">=</span><span class="dv">400</span>, width<span class="op">=</span><span class="dv">400</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-display">
 <div>
@@ -4234,7 +4241,7 @@ AAAAAExhdmY1Ny44My4xMDA=
 <p>To get a better handle on how exactly these operations work, how they transform our image, and how they change the dimensionality of the image at each step, let’s closely investigate an extremely simple example of a UNet.</p>
 <p><a id="4.1"></a> <strong><font size="4"> 4.1 The Data/Problem</font></strong></p>
 <p>Say we have a simple 8x8 image, made of black and white pixels randomly scattered. And we want to create a UNet to invert the image for us. Our data might look like this:</p>
-<div id="cell-108" class="cell" data-outputid="9db055b2-cf1a-42a5-c358-d41c2b095c14" data-execution_count="34">
+<div id="cell-110" class="cell">
 <div class="sourceCode cell-code" id="cb47"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb47-1"><a href="#cb47-1" aria-hidden="true" tabindex="-1"></a>im_in <span class="op">=</span> np.array([[<span class="dv">0</span>,<span class="dv">0</span>,<span class="dv">0</span>,<span class="dv">0</span>,<span class="dv">1</span>,<span class="dv">0</span>,<span class="dv">0</span>,<span class="dv">0</span>],   <span class="co"># example image in, which we'll also use for testing later</span></span>
 <span id="cb47-2"><a href="#cb47-2" aria-hidden="true" tabindex="-1"></a>              [<span class="dv">1</span>,<span class="dv">0</span>,<span class="dv">1</span>,<span class="dv">1</span>,<span class="dv">0</span>,<span class="dv">0</span>,<span class="dv">1</span>,<span class="dv">0</span>],       <span class="co"># obviously, not a real random scattering, but just an example</span></span>
 <span id="cb47-3"><a href="#cb47-3" aria-hidden="true" tabindex="-1"></a>              [<span class="dv">0</span>,<span class="dv">0</span>,<span class="dv">1</span>,<span class="dv">1</span>,<span class="dv">0</span>,<span class="dv">0</span>,<span class="dv">0</span>,<span class="dv">0</span>],</span>
@@ -4253,7 +4260,7 @@ AAAAAExhdmY1Ny44My4xMDA=
 <span id="cb47-16"><a href="#cb47-16" aria-hidden="true" tabindex="-1"></a>ax1.set_title(<span class="st">"in"</span>)</span>
 <span id="cb47-17"><a href="#cb47-17" aria-hidden="true" tabindex="-1"></a>ax2.imshow(im_out, cmap<span class="op">=</span><span class="st">"Greys_r"</span>)</span>
 <span id="cb47-18"><a href="#cb47-18" aria-hidden="true" tabindex="-1"></a>ax2.set_title(<span class="st">"out"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="cell-output cell-output-display" data-execution_count="34">
+<div class="cell-output cell-output-display">
 <pre><code>Text(0.5, 1.0, 'out')</code></pre>
 </div>
 <div class="cell-output cell-output-display">
@@ -4265,7 +4272,7 @@ AAAAAExhdmY1Ny44My4xMDA=
 </div>
 </div>
 <p>And we can easily generate a dataset of 100 examples:</p>
-<div id="cell-110" class="cell" data-execution_count="0">
+<div id="cell-112" class="cell">
 <div class="sourceCode cell-code" id="cb49"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb49-1"><a href="#cb49-1" aria-hidden="true" tabindex="-1"></a>X_example <span class="op">=</span> []</span>
 <span id="cb49-2"><a href="#cb49-2" aria-hidden="true" tabindex="-1"></a>y_example <span class="op">=</span> []</span>
 <span id="cb49-3"><a href="#cb49-3" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">100</span>):</span>
@@ -4278,7 +4285,7 @@ AAAAAExhdmY1Ny44My4xMDA=
 <p>This inversion operation is obviously very simple: It takes one line of code and 2 operations (a subtraction and an absolute value) to perfectly invert our image. But, because this is a transformation of an image, a very simple UNet should also be able to perform this inversion for us, so that’s what we’ll try to make here.</p>
 <p><a id="4.2"></a> <font size="4"> <strong>4.2 The Architecture</strong></font></p>
 <p>We’ll use a simple UNet, with a few 3x3 filters, to do this inversion. The architecture will look like this:</p>
-<div id="cell-113" class="cell" data-outputid="75dedd8d-9378-445f-995f-072cfcbdae7c" data-execution_count="36">
+<div id="cell-115" class="cell">
 <div class="sourceCode cell-code" id="cb50"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb50-1"><a href="#cb50-1" aria-hidden="true" tabindex="-1"></a>display(Im(<span class="st">'</span><span class="sc">%s</span><span class="st">/images/simple_example_UFormat.png'</span> <span class="op">%</span>filepath, width<span class="op">=</span><span class="dv">950</span>, height<span class="op">=</span><span class="dv">480</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-display">
 <div>
@@ -4290,7 +4297,7 @@ AAAAAExhdmY1Ny44My4xMDA=
 </div>
 <p>This might look a little overwhelming right now, but we’re going to go through each of the operations that this network will perform in more detail in the upcoming sections.</p>
 <p>We will also add layers to the model in keras as we go through them. To start building a model in keras, we just need to start defining our layers. This begins with the input:</p>
-<div id="cell-115" class="cell" data-outputid="5c615237-432d-4fd0-fc7f-27292728f070" data-execution_count="37">
+<div id="cell-117" class="cell">
 <div class="sourceCode cell-code" id="cb51"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb51-1"><a href="#cb51-1" aria-hidden="true" tabindex="-1"></a>input_size <span class="op">=</span> X_example[<span class="dv">0</span>].shape    <span class="co"># get the size of the input images, in our case this is 8x8x1</span></span>
 <span id="cb51-2"><a href="#cb51-2" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(input_size) </span>
 <span id="cb51-3"><a href="#cb51-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -4314,7 +4321,7 @@ WARNING:tensorflow:From /usr/local/lib/python3.6/dist-packages/keras/backend/ten
 <p>Because we have 2 filters, each with 3x3 weights, and an associated bias for each filter, this means our first layer has a total of: <span class="math display">\[\begin{equation*}
 2\times(3\times3) + 2 = 20
 \end{equation*}\]</span> learnable parameters.</p>
-<div id="cell-118" class="cell" data-outputid="4d76cc45-b7ba-4963-898a-2c067522142e" data-execution_count="38">
+<div id="cell-120" class="cell">
 <div class="sourceCode cell-code" id="cb53"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb53-1"><a href="#cb53-1" aria-hidden="true" tabindex="-1"></a>display(Im(<span class="st">'</span><span class="sc">%s</span><span class="st">/images/layers/conv1.png'</span> <span class="op">%</span>filepath, height<span class="op">=</span><span class="dv">270</span>, width<span class="op">=</span><span class="dv">1000</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-display">
 <div>
@@ -4325,7 +4332,7 @@ WARNING:tensorflow:From /usr/local/lib/python3.6/dist-packages/keras/backend/ten
 </div>
 </div>
 <p>We can add this to the model:</p>
-<div id="cell-120" class="cell" data-outputid="aba2a6f8-d6b6-4436-aec2-fce056f1daa8" data-execution_count="39">
+<div id="cell-122" class="cell">
 <div class="sourceCode cell-code" id="cb54"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb54-1"><a href="#cb54-1" aria-hidden="true" tabindex="-1"></a>conv1 <span class="op">=</span> Conv2D(filters <span class="op">=</span> <span class="dv">2</span>,   <span class="co"># here, we tell the layer we want to use 2 filters</span></span>
 <span id="cb54-2"><a href="#cb54-2" aria-hidden="true" tabindex="-1"></a>               kernel_size <span class="op">=</span> (<span class="dv">3</span>,<span class="dv">3</span>),  <span class="co"># the filters are of size 3x3</span></span>
 <span id="cb54-3"><a href="#cb54-3" aria-hidden="true" tabindex="-1"></a>               activation <span class="op">=</span> <span class="st">'relu'</span>,    <span class="co"># we want to use the ReLU activation function</span></span>
@@ -4343,7 +4350,7 @@ WARNING:tensorflow:From /usr/local/lib/python3.6/dist-packages/keras/backend/ten
 <p>Because we have 2 filters, each with 3x3x2 weights, and an associated bias for each filter, this means this second layer has a total of: <span class="math display">\[\begin{equation*}
 2\times(3\times3\times2) + 2 = 38
 \end{equation*}\]</span> learnable parameters.</p>
-<div id="cell-122" class="cell" data-outputid="1401ff6e-a86b-4cce-c2df-17708d57a6c1" data-execution_count="40">
+<div id="cell-124" class="cell">
 <div class="sourceCode cell-code" id="cb56"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb56-1"><a href="#cb56-1" aria-hidden="true" tabindex="-1"></a>display(Im(<span class="st">'</span><span class="sc">%s</span><span class="st">/images/layers/conv2.png'</span> <span class="op">%</span>filepath, height<span class="op">=</span><span class="dv">270</span>, width<span class="op">=</span><span class="dv">1000</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-display">
 <div>
@@ -4354,7 +4361,7 @@ WARNING:tensorflow:From /usr/local/lib/python3.6/dist-packages/keras/backend/ten
 </div>
 </div>
 <p>We add this to our model, the same way we added the first convolution:</p>
-<div id="cell-124" class="cell" data-execution_count="0">
+<div id="cell-126" class="cell">
 <div class="sourceCode cell-code" id="cb57"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb57-1"><a href="#cb57-1" aria-hidden="true" tabindex="-1"></a>conv2 <span class="op">=</span> Conv2D(filters <span class="op">=</span> <span class="dv">2</span>,   <span class="co"># 2 filters again</span></span>
 <span id="cb57-2"><a href="#cb57-2" aria-hidden="true" tabindex="-1"></a>               kernel_size <span class="op">=</span> (<span class="dv">3</span>,<span class="dv">3</span>),  <span class="co"># size 3x3 filters. Keras is smart, so we don't need to tell it that these filters need to have 2</span></span>
 <span id="cb57-3"><a href="#cb57-3" aria-hidden="true" tabindex="-1"></a>                                     <span class="co"># channels; it will know that because it will know that the input to the layer has 2 channels</span></span>
@@ -4364,7 +4371,7 @@ WARNING:tensorflow:From /usr/local/lib/python3.6/dist-packages/keras/backend/ten
 </div>
 <p>The last step in this convolution block is pooling, where we downsize our image by applying 2x2 pooling to it.</p>
 <p>There are no learnable parameters in a pooling step, but it’s important to note that we <em>do not</em> pool across channels - our <strong>8x8x2</strong> output becomes <strong>4x4x2</strong>, because the two channels are each pooled seperately and remain stacked.</p>
-<div id="cell-126" class="cell" data-outputid="78b89c02-0bb2-4e29-d4b3-67a489cef346" data-execution_count="42">
+<div id="cell-128" class="cell">
 <div class="sourceCode cell-code" id="cb58"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb58-1"><a href="#cb58-1" aria-hidden="true" tabindex="-1"></a>display(Im(<span class="st">'</span><span class="sc">%s</span><span class="st">/images/layers/pool1.png'</span> <span class="op">%</span>filepath, height<span class="op">=</span><span class="dv">270</span>, width<span class="op">=</span><span class="dv">1000</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-display">
 <div>
@@ -4375,7 +4382,7 @@ WARNING:tensorflow:From /usr/local/lib/python3.6/dist-packages/keras/backend/ten
 </div>
 </div>
 <p>Adding a pooling layer to our model is also straightforward with Keras:</p>
-<div id="cell-128" class="cell" data-outputid="7dd6753c-3014-4ef7-f4d2-c74001d1398d" data-execution_count="43">
+<div id="cell-130" class="cell">
 <div class="sourceCode cell-code" id="cb59"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb59-1"><a href="#cb59-1" aria-hidden="true" tabindex="-1"></a>pool1 <span class="op">=</span> MaxPooling2D(pool_size<span class="op">=</span>(<span class="dv">2</span>, <span class="dv">2</span>))(conv2)   <span class="co"># we just need to tell it the size of the region to pool,</span></span>
 <span id="cb59-2"><a href="#cb59-2" aria-hidden="true" tabindex="-1"></a>                                                <span class="co"># and that we're pooling the output from conv2</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
@@ -4394,7 +4401,7 @@ WARNING:tensorflow:From /usr/local/lib/python3.6/dist-packages/keras/backend/ten
 <p>Because we have 3 filters, each with 3x3x2 weights, and an associated bias for each filter, this means this layer has a total of: <span class="math display">\[\begin{equation*}
 3\times(3\times3\times2) + 3 = 57
 \end{equation*}\]</span> learnable parameters.</p>
-<div id="cell-131" class="cell" data-outputid="70e22909-7f6a-4f50-a9ab-fda0cb32f4bd" data-execution_count="44">
+<div id="cell-133" class="cell">
 <div class="sourceCode cell-code" id="cb61"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb61-1"><a href="#cb61-1" aria-hidden="true" tabindex="-1"></a>display(Im(<span class="st">'</span><span class="sc">%s</span><span class="st">/images/layers/conv3.png'</span> <span class="op">%</span>filepath, height<span class="op">=</span><span class="dv">370</span>, width<span class="op">=</span><span class="dv">1000</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-display">
 <div>
@@ -4405,7 +4412,7 @@ WARNING:tensorflow:From /usr/local/lib/python3.6/dist-packages/keras/backend/ten
 </div>
 </div>
 <p>Adding this to our model:</p>
-<div id="cell-133" class="cell" data-execution_count="0">
+<div id="cell-135" class="cell">
 <div class="sourceCode cell-code" id="cb62"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb62-1"><a href="#cb62-1" aria-hidden="true" tabindex="-1"></a>conv3 <span class="op">=</span> Conv2D(filters <span class="op">=</span> <span class="dv">3</span>, kernel_size <span class="op">=</span> (<span class="dv">3</span>,<span class="dv">3</span>),  <span class="co">#again, we don't need to tell it that we'll need 2-channel filters</span></span>
 <span id="cb62-2"><a href="#cb62-2" aria-hidden="true" tabindex="-1"></a>               activation <span class="op">=</span> <span class="st">'relu'</span>, padding <span class="op">=</span> <span class="st">'same'</span>, kernel_initializer <span class="op">=</span> <span class="st">'he_normal'</span>)(pool1)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
@@ -4413,7 +4420,7 @@ WARNING:tensorflow:From /usr/local/lib/python3.6/dist-packages/keras/backend/ten
 <p>Because we have 3 filters, each with 3x3x3 weights, and an associated bias for each filter, this means this layer has a total of: <span class="math display">\[\begin{equation*}
 3\times(3\times3\times3) + 3 = 84
 \end{equation*}\]</span> learnable parameters.</p>
-<div id="cell-135" class="cell" data-outputid="5c23f3b7-4a21-4203-c0ad-eeb0debe35d8" data-execution_count="46">
+<div id="cell-137" class="cell">
 <div class="sourceCode cell-code" id="cb63"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb63-1"><a href="#cb63-1" aria-hidden="true" tabindex="-1"></a>display(Im(<span class="st">'</span><span class="sc">%s</span><span class="st">/images/layers/conv4.png'</span> <span class="op">%</span>filepath, height<span class="op">=</span><span class="dv">370</span>, width<span class="op">=</span><span class="dv">1000</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-display">
 <div>
@@ -4424,7 +4431,7 @@ WARNING:tensorflow:From /usr/local/lib/python3.6/dist-packages/keras/backend/ten
 </div>
 </div>
 <p>Again, this is easy to add to the model:</p>
-<div id="cell-137" class="cell" data-execution_count="0">
+<div id="cell-139" class="cell">
 <div class="sourceCode cell-code" id="cb64"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb64-1"><a href="#cb64-1" aria-hidden="true" tabindex="-1"></a>conv4 <span class="op">=</span> Conv2D(filters <span class="op">=</span> <span class="dv">3</span>, kernel_size <span class="op">=</span> <span class="dv">3</span>,  <span class="co"># if you just give kernel_size a single number, it assumes a square filter of that dimension</span></span>
 <span id="cb64-2"><a href="#cb64-2" aria-hidden="true" tabindex="-1"></a>               activation <span class="op">=</span> <span class="st">'relu'</span>, padding <span class="op">=</span> <span class="st">'same'</span>, kernel_initializer <span class="op">=</span> <span class="st">'he_normal'</span>)(conv3)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
@@ -4437,7 +4444,7 @@ WARNING:tensorflow:From /usr/local/lib/python3.6/dist-packages/keras/backend/ten
 </font></font></font></ol><font size="2.5"><font size="2.5"><font size="2.5">
 <p>In the upsampling step, we’ll upsize our image taking each pixel and copying it into a 2x2 square.</p>
 <p>There are no learnable parameters in an upsampling step, but it’s important to note that, as with pooling, channels aren’t upsampled - our <strong>4x4x3</strong> image becomes <strong>8x8x3</strong>, because the two channels are each upsampled seperately and remain stacked.</p>
-<div id="cell-140" class="cell" data-outputid="9448efce-46ed-4e5c-ccfa-b2f86b8eb45f" data-execution_count="48">
+<div id="cell-142" class="cell">
 <div class="sourceCode cell-code" id="cb65"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb65-1"><a href="#cb65-1" aria-hidden="true" tabindex="-1"></a>display(Im(<span class="st">'</span><span class="sc">%s</span><span class="st">/images/layers/upsamp1.png'</span> <span class="op">%</span>filepath, height<span class="op">=</span><span class="dv">270</span>, width<span class="op">=</span><span class="dv">1000</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-display">
 <div>
@@ -4448,7 +4455,7 @@ WARNING:tensorflow:From /usr/local/lib/python3.6/dist-packages/keras/backend/ten
 </div>
 </div>
 <p>Adding the upsampling layer to our model is also as easy as adding the pooling layer was:</p>
-<div id="cell-142" class="cell" data-outputid="3c208265-6d31-4d61-e12e-a15a69ebf0f8" data-execution_count="49">
+<div id="cell-144" class="cell">
 <div class="sourceCode cell-code" id="cb66"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb66-1"><a href="#cb66-1" aria-hidden="true" tabindex="-1"></a>up1 <span class="op">=</span> UpSampling2D(size <span class="op">=</span> (<span class="dv">2</span>,<span class="dv">2</span>))(conv4)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>WARNING:tensorflow:From /usr/local/lib/python3.6/dist-packages/keras/backend/tensorflow_backend.py:2239: The name tf.image.resize_nearest_neighbor is deprecated. Please use tf.compat.v1.image.resize_nearest_neighbor instead.
@@ -4459,7 +4466,7 @@ WARNING:tensorflow:From /usr/local/lib/python3.6/dist-packages/keras/backend/ten
 <p>Because we have 2 filters, each with 3x3x3 weights, and an associated bias for each filter, this means this layer has a total of: <span class="math display">\[\begin{equation*}
 2\times(3\times3\times3) + 2 = 56
 \end{equation*}\]</span> learnable parameters.</p>
-<div id="cell-144" class="cell" data-outputid="b44168ff-e1ef-4ead-d4b2-c6eda647b93f" data-execution_count="50">
+<div id="cell-146" class="cell">
 <div class="sourceCode cell-code" id="cb68"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb68-1"><a href="#cb68-1" aria-hidden="true" tabindex="-1"></a>display(Im(<span class="st">'</span><span class="sc">%s</span><span class="st">/images/layers/conv5.png'</span> <span class="op">%</span>filepath, height<span class="op">=</span><span class="dv">270</span>, width<span class="op">=</span><span class="dv">1000</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-display">
 <div>
@@ -4470,12 +4477,12 @@ WARNING:tensorflow:From /usr/local/lib/python3.6/dist-packages/keras/backend/ten
 </div>
 </div>
 <p>We can add this convolutional layer to the mode making sure that we are applying it to the output from the upsampling layer:</p>
-<div id="cell-146" class="cell" data-execution_count="0">
+<div id="cell-148" class="cell">
 <div class="sourceCode cell-code" id="cb69"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb69-1"><a href="#cb69-1" aria-hidden="true" tabindex="-1"></a>conv5 <span class="op">=</span> Conv2D(<span class="dv">2</span>, <span class="dv">3</span>, activation <span class="op">=</span> <span class="st">'relu'</span>, padding <span class="op">=</span> <span class="st">'same'</span>, kernel_initializer <span class="op">=</span> <span class="st">'he_normal'</span>)(up1)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <p>Next is the concatenation step. We now have an 8x8x(2 channel) image as the output from Conv5. We also had, from our downsizing steps, an 8x8x(2 channel) image as the output from Conv2. In the concatenation step, we stack these together so that we have an 8x8x(4 channel) image.</p>
 <p>Concatenations, because they just involve stacking images, will have no learnable parameters.</p>
-<div id="cell-148" class="cell" data-outputid="3c92a46d-dd28-4ef9-ccc1-e3307f4b3924" data-execution_count="52">
+<div id="cell-150" class="cell">
 <div class="sourceCode cell-code" id="cb70"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb70-1"><a href="#cb70-1" aria-hidden="true" tabindex="-1"></a>display(Im(<span class="st">'</span><span class="sc">%s</span><span class="st">/images/layers/concat1.png'</span> <span class="op">%</span>filepath, height<span class="op">=</span><span class="dv">270</span>, width<span class="op">=</span><span class="dv">1000</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-display">
 <div>
@@ -4486,7 +4493,7 @@ WARNING:tensorflow:From /usr/local/lib/python3.6/dist-packages/keras/backend/ten
 </div>
 </div>
 <p>To do this concatenation with keras, we just need to specify what layer outputs (conv5 and conv2) we’re looking to concatenate:</p>
-<div id="cell-150" class="cell" data-execution_count="0">
+<div id="cell-152" class="cell">
 <div class="sourceCode cell-code" id="cb71"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb71-1"><a href="#cb71-1" aria-hidden="true" tabindex="-1"></a>concat1 <span class="op">=</span> concatenate([conv2,conv5], axis <span class="op">=</span> <span class="dv">3</span>)     <span class="co"># axis = 3 tells the model that we need to stack these images as extra channels. Both</span></span>
 <span id="cb71-2"><a href="#cb71-2" aria-hidden="true" tabindex="-1"></a>                                                   <span class="co"># conv5 and conv3 will have shape (None, 8, 8, 2), so axis = 3 means to stack along the axis</span></span>
 <span id="cb71-3"><a href="#cb71-3" aria-hidden="true" tabindex="-1"></a>                                                   <span class="co"># which has shape 2, the channel axis</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -4501,7 +4508,7 @@ WARNING:tensorflow:From /usr/local/lib/python3.6/dist-packages/keras/backend/ten
 <p>Because we have 2 filters, each with 3x3x4 weights, and an associated bias for each filter, this means this layer has a total of: <span class="math display">\[\begin{equation*}
 2\times(3\times3\times4) + 2 = 74
 \end{equation*}\]</span> learnable parameters.</p>
-<div id="cell-153" class="cell" data-outputid="94d19364-9245-4be0-9ce0-341ffe4053e0" data-execution_count="54">
+<div id="cell-155" class="cell">
 <div class="sourceCode cell-code" id="cb72"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb72-1"><a href="#cb72-1" aria-hidden="true" tabindex="-1"></a>display(Im(<span class="st">'</span><span class="sc">%s</span><span class="st">/images/layers/conv6.png'</span> <span class="op">%</span>filepath, height<span class="op">=</span><span class="dv">370</span>, width<span class="op">=</span><span class="dv">1000</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-display">
 <div>
@@ -4512,7 +4519,7 @@ WARNING:tensorflow:From /usr/local/lib/python3.6/dist-packages/keras/backend/ten
 </div>
 </div>
 <p>We add this to the model the same as any other convolutional layer, making sure we apply it to the output from our concatenation:</p>
-<div id="cell-155" class="cell" data-execution_count="0">
+<div id="cell-157" class="cell">
 <div class="sourceCode cell-code" id="cb73"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb73-1"><a href="#cb73-1" aria-hidden="true" tabindex="-1"></a>conv6 <span class="op">=</span> Conv2D(<span class="dv">2</span>, <span class="dv">3</span>, activation <span class="op">=</span> <span class="st">'relu'</span>, padding <span class="op">=</span> <span class="st">'same'</span>, kernel_initializer <span class="op">=</span> <span class="st">'he_normal'</span>)(concat1)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <p>Finally, Conv7 will convolve our image, with 1 filter of size 3x3, and 2 channels. Because our input only had 1 channel, our final convolution must use only 1 filter, to ensure that the output has only 1 channel. We will pad and add bias as usual.</p>
@@ -4520,7 +4527,7 @@ WARNING:tensorflow:From /usr/local/lib/python3.6/dist-packages/keras/backend/ten
 <p>The layer output is <strong>1, 8x8 image</strong>. Because we have 1 filter with 3x3x2 weights, and an associated bias, this layer has a total of: <span class="math display">\[\begin{equation*}
 1\times(3\times3\times2) + 1 = 19
 \end{equation*}\]</span> learnable parameters.</p>
-<div id="cell-157" class="cell" data-outputid="89748a1d-7dc3-40d4-fedd-975618622418" data-execution_count="56">
+<div id="cell-159" class="cell">
 <div class="sourceCode cell-code" id="cb74"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb74-1"><a href="#cb74-1" aria-hidden="true" tabindex="-1"></a>display(Im(<span class="st">'</span><span class="sc">%s</span><span class="st">/images/layers/conv7.png'</span> <span class="op">%</span>filepath, height<span class="op">=</span><span class="dv">270</span>, width<span class="op">=</span><span class="dv">1000</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-display">
 <div>
@@ -4531,14 +4538,14 @@ WARNING:tensorflow:From /usr/local/lib/python3.6/dist-packages/keras/backend/ten
 </div>
 </div>
 <p>Adding this to our model:</p>
-<div id="cell-159" class="cell" data-execution_count="0">
+<div id="cell-161" class="cell">
 <div class="sourceCode cell-code" id="cb75"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb75-1"><a href="#cb75-1" aria-hidden="true" tabindex="-1"></a>conv7 <span class="op">=</span> Conv2D(<span class="dv">1</span>, <span class="dv">3</span>, activation <span class="op">=</span> <span class="st">'sigmoid'</span>, padding <span class="op">=</span> <span class="st">'same'</span>, kernel_initializer <span class="op">=</span> <span class="st">'he_normal'</span>)(conv6) <span class="co"># note the change in activation function</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <p><a id="4.7"></a> <strong><font size="4"> 4.7 The Final Model</font></strong></p>
 <p>Now, let’s finish putting the model together, and have a look at the model summary that keras gives us, and try it out.</p>
 <p>To finish up our model, we just need to define it by telling keras what layer is the input and what is the output. We’ll also need to compile the model before we can use it, where we’ll get to choose a few hyperparameters. To keep it simple, we’ll choose a common optimizer, the <strong>Adam</strong> optimizer, and only specify the <strong>learning rate</strong>. We also need to choose what loss function to use, and we’ll use the <strong>mean-squared error</strong>, which keras already has built in for us.</p>
 <p>This tutorial isn’t meant to cover the huge body of options for all of these hyperparameters, loss functions, and other functionalities that we can add when compiling our model, but the keras website: https://keras.io/models/model/ does a good job of listing all of the options it has for the compile method.</p>
-<div id="cell-162" class="cell" data-outputid="87d84355-476e-45fd-d6ab-fd085ae0451c" data-execution_count="58">
+<div id="cell-164" class="cell">
 <div class="sourceCode cell-code" id="cb76"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb76-1"><a href="#cb76-1" aria-hidden="true" tabindex="-1"></a>simple_model <span class="op">=</span> Model(<span class="bu">input</span> <span class="op">=</span> inputs, output <span class="op">=</span> conv7) <span class="co"># we tell it that the first layer is the input layer, and that conv7 is going to be</span></span>
 <span id="cb76-2"><a href="#cb76-2" aria-hidden="true" tabindex="-1"></a>                                                     <span class="co"># the layer that gives us the output. All of the layers in between were connected as we defined</span></span>
 <span id="cb76-3"><a href="#cb76-3" aria-hidden="true" tabindex="-1"></a>                                                     <span class="co"># them, so we don't need to give the model any of those here.</span></span>
@@ -4555,7 +4562,7 @@ WARNING:tensorflow:From /usr/local/lib/python3.6/dist-packages/keras/backend/ten
 </div>
 </div>
 <p>Keras will also display for us a summary of our model, showing the different layers, their shapes, and the number of learnable parameters per layer, and is a handy way to make sure that the model is consistent and doing everything we expect it to.</p>
-<div id="cell-164" class="cell" data-outputid="571e3723-f9ce-40c0-9423-31d49a06ef47" data-execution_count="59">
+<div id="cell-166" class="cell">
 <div class="sourceCode cell-code" id="cb79"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb79-1"><a href="#cb79-1" aria-hidden="true" tabindex="-1"></a>simple_model.summary()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>Model: "model_1"
@@ -4593,7 +4600,7 @@ ________________________________________________________________________________
 </div>
 <p>We can see, if we go back and check the number of learnable parameters, and the output shapes for each of these layers, that they match exactly what we expected. The fact that the model compiles properly is good news, too - we’ll get an error if we tried to build a model that doesn’t connect properly or where the shapes don’t make sense.</p>
 <p>Training a model in keras is also super simple. Let’s try training this model, on our example data, for 500 <strong>epochs</strong> - 500 iterations of the model seeing all of the example images and adjusting the weights accordingly.</p>
-<div id="cell-167" class="cell" data-outputid="ccef2d04-3a01-4122-e71c-da04119bad23" data-execution_count="60">
+<div id="cell-169" class="cell">
 <div class="sourceCode cell-code" id="cb81"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb81-1"><a href="#cb81-1" aria-hidden="true" tabindex="-1"></a>simple_model_history <span class="op">=</span> simple_model.fit(X_example, y_example,   <span class="co"># the fake data we made, X is input, y is output</span></span>
 <span id="cb81-2"><a href="#cb81-2" aria-hidden="true" tabindex="-1"></a>                                        epochs <span class="op">=</span> <span class="dv">500</span>,           <span class="co"># we'll try out 100 epochs</span></span>
 <span id="cb81-3"><a href="#cb81-3" aria-hidden="true" tabindex="-1"></a>                                        verbose <span class="op">=</span> <span class="dv">1</span>)            <span class="co"># verbose = 1 tells keras that we want to see how well the model is doing at every epoch</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -5617,7 +5624,7 @@ Epoch 500/500
 </div>
 </div>
 <p>So, how did the model do? Let’s check by using the im_in and im_out example images that we made at the start of this section, which the model hasn’t seen before, to see if it can do the inversion for us.</p>
-<div id="cell-169" class="cell" data-outputid="2c399a5f-6f30-4e01-ee7b-2fb98f68847a" data-execution_count="61">
+<div id="cell-171" class="cell">
 <div class="sourceCode cell-code" id="cb83"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb83-1"><a href="#cb83-1" aria-hidden="true" tabindex="-1"></a>fig <span class="op">=</span> plt.figure(figsize<span class="op">=</span>(<span class="dv">15</span>,<span class="dv">5</span>))</span>
 <span id="cb83-2"><a href="#cb83-2" aria-hidden="true" tabindex="-1"></a>ax1,ax2,ax3 <span class="op">=</span> fig.subplots(<span class="dv">1</span>,<span class="dv">3</span>)</span>
 <span id="cb83-3"><a href="#cb83-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -5627,8 +5634,8 @@ Epoch 500/500
 <span id="cb83-7"><a href="#cb83-7" aria-hidden="true" tabindex="-1"></a>ax1.imshow(im_in, cmap<span class="op">=</span><span class="st">"Greys"</span>), ax1.set_title(<span class="st">"Input"</span>)</span>
 <span id="cb83-8"><a href="#cb83-8" aria-hidden="true" tabindex="-1"></a>ax2.imshow(im_out, cmap<span class="op">=</span><span class="st">"Greys"</span>), ax2.set_title(<span class="st">"True Output"</span>)</span>
 <span id="cb83-9"><a href="#cb83-9" aria-hidden="true" tabindex="-1"></a>ax3.imshow(predicted_im_out, cmap<span class="op">=</span><span class="st">"Greys"</span>), ax3.set_title(<span class="st">"Predicted Output"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="cell-output cell-output-display" data-execution_count="61">
-<pre><code>(&lt;matplotlib.image.AxesImage at 0x7fc3684d2320&gt;,
+<div class="cell-output cell-output-display">
+<pre><code>(&lt;matplotlib.image.AxesImage&gt;,
  Text(0.5, 1.0, 'Predicted Output'))</code></pre>
 </div>
 <div class="cell-output cell-output-display">
@@ -5645,7 +5652,7 @@ Epoch 500/500
 <p><a id="5.1"></a> <strong><font size="4"> 5.1 Our Simple Example</font></strong></p>
 <p>The simple inversion example that we did didn’t have many layers or filters. So, we can actually go through and easily look at every single weight our model learned.</p>
 <p>Keras saves the weights that all of our filters had, so it’s easy to go through and display all of our model’s filters:</p>
-<div id="cell-174" class="cell" data-outputid="0760431a-474f-4bc5-bbd4-5f60d580eabc" data-execution_count="62">
+<div id="cell-176" class="cell">
 <div class="sourceCode cell-code" id="cb85"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb85-1"><a href="#cb85-1" aria-hidden="true" tabindex="-1"></a><span class="co"># iterate over all of our layers</span></span>
 <span id="cb85-2"><a href="#cb85-2" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> layer <span class="kw">in</span> simple_model.layers:</span>
 <span id="cb85-3"><a href="#cb85-3" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> <span class="st">"conv"</span> <span class="kw">in</span> layer.name:       <span class="co"># there are other (non-conv) layers, with no learnable params</span></span>
@@ -5721,7 +5728,7 @@ Epoch 500/500
 </div>
 <p>Looking at all of our filters <em>can</em> be useful, but it also can show us a bunch of seemingly random weights, as it does above. What’s often more useful is to look at the layer <strong>activations</strong> - or the “version” of the image that convoling with a filter, adding its bias, and passing through an activation function gives us. For each of the filters above, we can look at the activation that would come from convolving an image with it.</p>
 <p>So, let’s use our example image again, and see what the activations for that image are at each layer.</p>
-<div id="cell-177" class="cell" data-outputid="cc3a3e13-5f46-4d49-8a2f-1bff94e81da7" data-execution_count="63">
+<div id="cell-179" class="cell">
 <div class="sourceCode cell-code" id="cb86"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb86-1"><a href="#cb86-1" aria-hidden="true" tabindex="-1"></a>layer_outputs <span class="op">=</span> [layer.output <span class="cf">for</span> layer <span class="kw">in</span> simple_model.layers[<span class="dv">1</span>:]]     <span class="co"># the first layer is input, but we want all layers after that</span></span>
 <span id="cb86-2"><a href="#cb86-2" aria-hidden="true" tabindex="-1"></a>activation_model <span class="op">=</span> Model(inputs<span class="op">=</span>simple_model.<span class="bu">input</span>, outputs<span class="op">=</span>layer_outputs)    <span class="co"># Make a model that returns each layer output given the input</span></span>
 <span id="cb86-3"><a href="#cb86-3" aria-hidden="true" tabindex="-1"></a>activations <span class="op">=</span> activation_model.predict(im_in.reshape(<span class="dv">1</span>,<span class="dv">8</span>,<span class="dv">8</span>,<span class="dv">1</span>))    <span class="co"># then, get all the activations for our test image</span></span>
@@ -5824,7 +5831,7 @@ Epoch 500/500
 <p>https://github.com/zhixuhao/unet</p>
 <p>But we’re going to augment the data differently, and I’ve made the U-Net smaller (in both number of layers and number of filters) to make it more manageable to visualize.</p>
 <p>The task for this U-Net is image segmentation. Given a grayscale image, we want to create a black/white mask, where areas of interest are in black and all other areas are in white. Let’s start by loading in the data so we can take a look at an example. We are also going to <strong>augment</strong> the data as we load it in. That means, we’ll rotate and/or transpose images as we read them in, so that they can become multiple new images to use for training. We’ll also chop each of our images (which begin as 512x512) into multiple smaller images, again, because smaller images will be easier to visualize later.</p>
-<div id="cell-183" class="cell" data-execution_count="0">
+<div id="cell-185" class="cell">
 <div class="sourceCode cell-code" id="cb87"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb87-1"><a href="#cb87-1" aria-hidden="true" tabindex="-1"></a>input_path <span class="op">=</span> <span class="st">'</span><span class="sc">%s</span><span class="st">/data/ims'</span> <span class="op">%</span>filepath</span>
 <span id="cb87-2"><a href="#cb87-2" aria-hidden="true" tabindex="-1"></a>output_path <span class="op">=</span> <span class="st">'</span><span class="sc">%s</span><span class="st">/data/labels'</span> <span class="op">%</span>filepath</span>
 <span id="cb87-3"><a href="#cb87-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -5878,7 +5885,7 @@ Epoch 500/500
 <span id="cb87-51"><a href="#cb87-51" aria-hidden="true" tabindex="-1"></a>y <span class="op">=</span> (y<span class="op">-</span>np.<span class="bu">min</span>(y))<span class="op">/</span>(np.<span class="bu">max</span>(y)<span class="op">-</span>np.<span class="bu">min</span>(y))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <p>Now let’s look at some examples of our images, and confirm that our augmentations worked properly.</p>
-<div id="cell-185" class="cell" data-outputid="ace24507-15a1-4212-8c61-8f6a2bbfb2ad" data-execution_count="65">
+<div id="cell-187" class="cell">
 <div class="sourceCode cell-code" id="cb88"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb88-1"><a href="#cb88-1" aria-hidden="true" tabindex="-1"></a>fig <span class="op">=</span> plt.figure(figsize<span class="op">=</span>(<span class="dv">15</span>,<span class="dv">9</span>))</span>
 <span id="cb88-2"><a href="#cb88-2" aria-hidden="true" tabindex="-1"></a>ax1 <span class="op">=</span> fig.add_subplot(<span class="dv">2</span>,<span class="dv">4</span>,<span class="dv">1</span>)</span>
 <span id="cb88-3"><a href="#cb88-3" aria-hidden="true" tabindex="-1"></a>ax1.imshow(X[<span class="dv">0</span>].reshape(sz,sz),cmap<span class="op">=</span><span class="st">'Greys_r'</span>), plt.title(<span class="st">"Input Image"</span>)</span>
@@ -5911,7 +5918,7 @@ Epoch 500/500
 </div>
 </div>
 <p>Now, let’s build the model that we’ll train on this problem. We’re going to build this model exactly the same way that we built the very simple model, but it will have more layers and more filters.</p>
-<div id="cell-187" class="cell" data-outputid="f29e4fb1-19ef-4c98-e0f1-49eff3936b28" data-execution_count="66">
+<div id="cell-189" class="cell">
 <div class="sourceCode cell-code" id="cb90"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb90-1"><a href="#cb90-1" aria-hidden="true" tabindex="-1"></a>inputs <span class="op">=</span> Input(input_size)</span>
 <span id="cb90-2"><a href="#cb90-2" aria-hidden="true" tabindex="-1"></a><span class="co"># conv block 1</span></span>
 <span id="cb90-3"><a href="#cb90-3" aria-hidden="true" tabindex="-1"></a>conv1 <span class="op">=</span> Conv2D(<span class="dv">16</span>, <span class="dv">3</span>, activation <span class="op">=</span> <span class="st">'relu'</span>, padding <span class="op">=</span> <span class="st">'same'</span>, kernel_initializer <span class="op">=</span> <span class="st">'he_normal'</span>)(inputs)</span>
@@ -6030,7 +6037,7 @@ ________________________________________________________________________________
 </div>
 <p>Let’s train this model:</p>
 <p><font size="2"> <em>Note: this model is a bit more complicated than our very simple one, so this cell could take some time to run.</em></font></p><font size="2">
-<div id="cell-189" class="cell" data-outputid="3d9f92d8-b372-456f-8b80-3b3f46275888" data-execution_count="67">
+<div id="cell-191" class="cell">
 <div class="sourceCode cell-code" id="cb93"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb93-1"><a href="#cb93-1" aria-hidden="true" tabindex="-1"></a>model_history <span class="op">=</span> model.fit(X, y, epochs <span class="op">=</span> <span class="dv">100</span>, verbose <span class="op">=</span> <span class="dv">1</span>,batch_size<span class="op">=</span><span class="dv">100</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>Epoch 1/100
@@ -6236,7 +6243,7 @@ Epoch 100/100
 </div>
 </div>
 <p>Now, before we take a closer look at what the model is doing, let’s look at how accurately it was able to produce our desired masks to see if we’ve sucessfully completed our task.</p>
-<div id="cell-191" class="cell" data-outputid="3937c21d-056c-4f6c-a71d-620c36b9ba6f" data-execution_count="77">
+<div id="cell-193" class="cell">
 <div class="sourceCode cell-code" id="cb95"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb95-1"><a href="#cb95-1" aria-hidden="true" tabindex="-1"></a>data_num <span class="op">=</span> <span class="dv">2500</span>  <span class="co"># can change to look at a different image and its prediction</span></span>
 <span id="cb95-2"><a href="#cb95-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb95-3"><a href="#cb95-3" aria-hidden="true" tabindex="-1"></a>input_im <span class="op">=</span> X[data_num].reshape(sz,sz)</span>
@@ -6259,7 +6266,7 @@ Epoch 100/100
 </div>
 <p>And it looks pretty good! Okay, so let’s look at the filters again for this network, and see if any of them seem to stand out as picking out some features for us.</p>
 <p>We’ll do this in the exact same way that we did above, except we’ll only look at the filters for the <strong>first</strong> convolutional layer of the <strong>first</strong> convolutional block. This is because we have way more filters in this example than we did in the last example, so even in the second convolution of the first convolution block involves filters with 16 channels, so visualizing all of them would be extremely hard.</p>
-<div id="cell-193" class="cell" data-outputid="b9f06cec-ec53-4ba5-f7dd-b30b3aa09205" data-execution_count="90">
+<div id="cell-195" class="cell">
 <div class="sourceCode cell-code" id="cb96"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb96-1"><a href="#cb96-1" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> layer <span class="kw">in</span> model.layers[<span class="dv">1</span>:<span class="dv">2</span>]:</span>
 <span id="cb96-2"><a href="#cb96-2" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> <span class="st">"conv"</span> <span class="kw">in</span> layer.name:</span>
 <span id="cb96-3"><a href="#cb96-3" aria-hidden="true" tabindex="-1"></a>    filters, biases <span class="op">=</span> layer.get_weights()</span>
@@ -6283,7 +6290,7 @@ Epoch 100/100
 </div>
 </div>
 <p>It might not be any more evident in this real-world example than it was in our very simple example what these filters are doing. But, now that our images have significant structure, we might be able to figure out what these filters are telling us. Let’s look at the activations for this first convolutional layer to see if anything jumps out.</p>
-<div id="cell-195" class="cell" data-outputid="8e7116f3-fb0d-4133-f615-9485c927d731" data-execution_count="91">
+<div id="cell-197" class="cell">
 <div class="sourceCode cell-code" id="cb97"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb97-1"><a href="#cb97-1" aria-hidden="true" tabindex="-1"></a>layer_outputs <span class="op">=</span> [layer.output <span class="cf">for</span> layer <span class="kw">in</span> model.layers[<span class="dv">1</span>:]] </span>
 <span id="cb97-2"><a href="#cb97-2" aria-hidden="true" tabindex="-1"></a>activation_model <span class="op">=</span> Model(inputs<span class="op">=</span>model.<span class="bu">input</span>, outputs<span class="op">=</span>layer_outputs) <span class="co"># Creates a model that will return these outputs, given the model input</span></span>
 <span id="cb97-3"><a href="#cb97-3" aria-hidden="true" tabindex="-1"></a>activations <span class="op">=</span> activation_model.predict(input_im.reshape(<span class="dv">1</span>,<span class="dv">64</span>,<span class="dv">64</span>,<span class="dv">1</span>)) </span>
@@ -6309,7 +6316,7 @@ Epoch 100/100
 <p>Now, if you’ve just been reading the cells of this notebook without re-running them, you have the same filters and activations as I do. Otherwise, if you’ve been re-running the cells, and you’ve re-trained the model, your filters and activations will be different than mine. But, you should see that the activations all look like versions of the image that are meant to pick out <em>something</em>.</p>
 <p>In the cells below, I’m going to manually load in some of the filters and activations that I have in my notebook, and talk about them. If you didn’t re-run the notebook, this will be filters and activations 2,6, and 7 (python-indexed) from above. Otherwise, your filters and activations will be different, but likely some will still be relatively similar, to mine.</p>
 <p>So, here are the filters we’re going to look at:</p>
-<div id="cell-198" class="cell" data-outputid="7ed27c8e-504f-451c-a957-233d94f8deec" data-execution_count="95">
+<div id="cell-200" class="cell">
 <div class="sourceCode cell-code" id="cb98"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb98-1"><a href="#cb98-1" aria-hidden="true" tabindex="-1"></a>filt_2 <span class="op">=</span> np.array([[<span class="fl">0.6744713</span> , <span class="fl">0.69218516</span>, <span class="fl">0.6413911</span> ],</span>
 <span id="cb98-2"><a href="#cb98-2" aria-hidden="true" tabindex="-1"></a>                   [<span class="fl">0.36131164</span>, <span class="fl">0.426186</span>  , <span class="fl">0.4645831</span> ],</span>
 <span id="cb98-3"><a href="#cb98-3" aria-hidden="true" tabindex="-1"></a>                   [<span class="fl">0.534594</span>  , <span class="fl">0.5280584</span> , <span class="fl">0.4137286</span> ]])</span>
@@ -6336,7 +6343,7 @@ Epoch 100/100
 </div>
 </div>
 <p>Now, let’s look at the activations these filters gave:</p>
-<div id="cell-200" class="cell" data-outputid="5943d42f-b766-4242-a3c2-11d670f2dfb2" data-execution_count="22">
+<div id="cell-202" class="cell">
 <div class="sourceCode cell-code" id="cb99"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb99-1"><a href="#cb99-1" aria-hidden="true" tabindex="-1"></a>display(Im(<span class="st">'</span><span class="sc">%s</span><span class="st">/images/realWorld_example_activations.png'</span> <span class="op">%</span>filepath, height<span class="op">=</span><span class="dv">270</span>, width<span class="op">=</span><span class="dv">1000</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-display">
 <div>
@@ -6360,8 +6367,9 @@ Epoch 100/100
 <p>Still, it’s clearly an incredibly powerful tool for image transformation, which hopefully you now have a little better of an understanding/intuition about!</p>
 
 
+</font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></section><font size="2"><font size="4"><font size="3"><font size="3"><font size="3"><font size="2"><font size="4"><font size="2.5"><font size="2.5"><font size="2.5"><font size="2">
 
-</font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></main><font size="2"><font size="4"><font size="3"><font size="3"><font size="3"><font size="2"><font size="4"><font size="2.5"><font size="2.5"><font size="2.5"><font size="2"> <!-- /main -->
+</font></font></font></font></font></font></font></font></font></font></font></main><font size="2"><font size="4"><font size="3"><font size="3"><font size="3"><font size="2"><font size="4"><font size="2.5"><font size="2.5"><font size="2.5"><font size="2"> <!-- /main -->
 <script id="quarto-html-after-body" type="application/javascript">
 window.document.addEventListener("DOMContentLoaded", function (event) {
   const toggleBodyColorMode = (bsSheetEl) => {
