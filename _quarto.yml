@@ -3,7 +3,9 @@ project:
 
 website:
   title: "Abbie's AI Tutorials"
+  description: "Blog of Jupyter notebook-based tutorials, created by Abbie Petulante, postdoctoral researcher in AI/ML at Vanderbilt University."
   site-url: "https://apetulante.github.io"
+  google-analytics: "G-MM3V7NDQDQ"
   navbar:
     right:
       - about.qmd
@@ -11,7 +13,7 @@ website:
         href: https://github.com/apetulante
       - icon: linkedin
         href: https://www.linkedin.com/in/apetulante/
-
+author: Abbie Petulante
 format:
   html:
     theme:
