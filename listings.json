@@ -2,6 +2,7 @@
   {
     "listing": "/index.html",
     "items": [
+      "/posts/Transformer/transformer_tutorial.html",
       "/posts/LLaVA-Astronomy/LLaVA_GalaxyZoo.html",
       "/posts/PEFT-LoRA/PEFT_LoRA.html",
       "/posts/RL-for-LLMs/RL_for_LLMs.html",
