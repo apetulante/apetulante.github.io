@@ -1,1 +1,6 @@
 /.quarto/
+
+**/*.quarto_ipynb
+
+# local-only build notes
+HOW_TO_ADD_A_POST.md

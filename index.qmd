@@ -2,6 +2,7 @@
 title: "AI Jupyter Notebook Tutorials"
 listing:
   contents:
+    - "posts/Transformer"
     - "posts/LLaVA-Astronomy"
     - "posts/PEFT-LoRA"
     - "posts/Prompt-Caching" 

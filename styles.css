@@ -13,3 +13,30 @@ body[data-page-file="posts/welcome/index.qmd"] .quarto-title-meta-heading:contai
     width: 90%;
 }
 
+/* Keep raw <img> diagrams (e.g. the Colab-sourced notebooks, which use plain
+   HTML <img> tags that Quarto does not make responsive) within the content
+   column instead of rendering at full native pixel size. */
+#quarto-document-content img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 1rem auto;
+}
+
+/* Shrink code-block font a little so long lines need less horizontal scroll.
+   Only targets code BLOCKS (pre), not inline code in prose. */
+#quarto-document-content pre,
+#quarto-document-content div.sourceCode {
+    font-size: 0.82em;
+}
+
+/* Pandoc assigns table column widths from the number of dashes in the markdown
+   separator row, which can badly skew columns (e.g. a 73%/11% split that
+   squishes the last column). Ignore those and let content size the columns. */
+#quarto-document-content table {
+    width: 100%;
+}
+#quarto-document-content table colgroup col {
+    width: auto !important;
+}
+

@@ -1,5 +1,9 @@
 project:
   type: website
+  render:
+    - index.qmd
+    - about.qmd
+    - posts/
 
 website:
   title: "Abbie's AI Tutorials"
@@ -20,3 +24,5 @@ format:
       - cosmo
       - brand
     css: styles.css
+    grid:
+      body-width: 1000px
