@@ -7,9 +7,12 @@ project:
 
 website:
   title: "Abbie's AI Tutorials"
+  favicon: tabicon.png
   description: "Blog of Jupyter notebook-based tutorials, created by Abbie Petulante, postdoctoral researcher in AI/ML at Vanderbilt University."
   site-url: "https://apetulante.github.io"
   google-analytics: "G-MM3V7NDQDQ"
+  open-graph: true
+  twitter-card: true
   navbar:
     right:
       - about.qmd
